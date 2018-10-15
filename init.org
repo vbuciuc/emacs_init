@@ -1,0 +1,196 @@
+* Introduction
+
+Org init file.
+
+** Placeholder 
+:PROPERTIES:
+:header-args: :tangle yes
+:END:
+
+when there's no code loading
+
+#+BEGIN_SRC elisp
+(print "Nothin")
+#+END_SRC
+
+#+RESULTS:
+: Nothin
+
+* Stable 
+:PROPERTIES:
+:header-args: :tangle yes
+:END:
+
+#+BEGIN_SRC elisp
+(setq exec-path-from-shell-variables (quote ("PATH" "MANPATH" "GOPATH")))
+(exec-path-from-shell-initialize)
+#+END_SRC
+
+* Incubating
+
+** Language server for java
+:PROPERTIES:
+:header-args: :tangle yes
+:END:
+
+*** Placeholder
+#+BEGIN_SRC elisp :tangle yes
+  (print "Nothing")
+#+END_SRC
+
+*** Client install
+
+**** lsp-mode
+
+ #+BEGIN_SRC elisp
+   (use-package lsp-mode
+     :ensure t
+     :demand t
+     :init (setq lsp-inhibit-message nil ; you may set this to t to hide messages from message area
+		 lsp-eldoc-render-all nil
+		 lsp-highlight-symbol-at-point nil))
+ #+END_SRC
+
+ #+RESULTS:
+
+**** company-lsp
+
+ #+BEGIN_SRC elisp
+ (use-package company-lsp
+   :after  company
+   :ensure t
+   :config
+   (add-hook 'java-mode-hook (lambda () (push 'company-lsp company-backends)))
+   (setq company-lsp-enable-snippet t
+         company-lsp-cache-candidates t))
+ #+END_SRC
+
+ #+RESULTS:
+ : t
+
+
+**** lsp-ui
+ #+BEGIN_SRC elisp
+ (use-package lsp-ui
+   :ensure t
+   :demand t
+   :config
+   (setq lsp-ui-sideline-enable t
+         lsp-ui-sideline-show-symbol t
+         lsp-ui-sideline-show-hover t
+         lsp-ui-sideline-show-code-actions t
+         lsp-ui-sideline-update-mode 'point))
+ #+END_SRC
+
+ #+RESULTS:
+ : t
+
+**** Lsp java
+
+ #+BEGIN_SRC elisp
+    (use-package lsp-java
+      :ensure t
+      :config
+      ;; add lombok as agent for eclipse jdt
+      (setq lsp-java-vmargs
+	       (quote("-noverify" "-Xmx1G" "-XX:+UseG1GC" "-XX:+UseStringDeduplication" "-javaagent:/home/vibu/.java/lib/lombok/1.18.2/lombok.jar")))
+      (add-hook 'java-mode-hook 'lsp-java-enable)
+      (add-hook 'java-mode-hook  'flycheck-mode)
+      (add-hook 'java-mode-hook  'company-mode)
+      (add-hook 'java-mode-hook  (lambda () (lsp-ui-flycheck-enable t)))
+      (add-hook 'java-mode-hook  'lsp-ui-sideline-mode)
+      (setq lsp-java--workspace-folders (list "/home/vibu/work/apigov/api-traceability-connector/service/service-rest" "/home/vibu/work/apigov/mgw-controller/business/business-model")))
+ #+END_SRC
+
+ #+RESULTS:
+ : t
+
+** Golang
+:PROPERTIES:
+:header-args: :tangle yes
+:END:
+
+Autocompletion
+
+#+BEGIN_SRC elisp
+(use-package company-go
+  :ensure t)
+#+END_SRC
+
+#+BEGIN_SRC elisp
+  (use-package go-mode
+    :ensure t
+    :config
+    (add-hook `go-mode-hook (lambda ()
+			      (push "/home/vibu/work/go/bin" exec-path) ;; make sure this is in path
+			      (setq-local company-backends (list (list 'company-go 'company-yasnippet)))
+			      (add-hook `before-save-hook `gofmt-before-save) ;;; gofmt before save
+			      (flycheck-mode)
+			      (local-set-key (kbd "M-.") 'godef-jump)
+			      (local-set-key (kbd "M-*") 'pop-tag-mark)
+			      (local-set-key (kbd "M-p") 'compile)            ; Invoke compiler
+			      (local-set-key (kbd "M-P") 'recompile)          ; Redo most recent compile cmd
+			      (setq company-idle-delay 0)
+			      (setq gofmt-command "goimports")
+			      (go-guru-hl-identifier-mode) 
+			      )
+	      )
+    )
+#+END_SRC
+
+#+BEGIN_SRC elisp
+  (use-package ob-go
+    :ensure t)
+#+END_SRC
+
+#+BEGIN_SRC elisp
+(use-package go-rename
+  :ensure t)
+#+END_SRC
+
+#+BEGIN_SRC elisp
+(use-package go-guru
+  :ensure t)
+#+END_SRC
+
+Gotest
+
+#+BEGIN_SRC elisp
+(use-package gotest
+:ensure t)
+#+END_SRC
+
+Gometalinter
+
+#+BEGIN_SRC elisp
+    (use-package flycheck-gometalinter
+      :ensure t
+      :config
+      (progn
+	(setq flycheck-gometalinter-vendor t)
+	(setq flycheck-gometalinter-fast t)
+	(flycheck-gometalinter-setup)))
+#+END_SRC
+
+Go snippets
+
+#+BEGIN_SRC elisp
+  (use-package go-snippets
+    :ensure t)
+#+END_SRC
+
+** Flycheck pos tip
+
+:PROPERTIES:
+:header-args: :tangle yes
+:END:
+
+#+BEGIN_SRC elisp
+  (use-package flycheck-pos-tip
+  :ensure t
+  :config 
+  (add-hook 'flycheck-mode-hook (lambda ()
+				  (flycheck-pos-tip-mode)
+				  ))
+  )
+#+END_SRC
