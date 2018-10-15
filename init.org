@@ -1,29 +1,157 @@
-* Introduction
+#+Title: My org init file. [WIP]
 
-Org init file.
+* Loading this file
 
-** Placeholder 
+Add to emacs init file:
+
+#+BEGIN_SRC elisp
+(org-babel-load-file "~/emacs_init/init.org")
+#+END_SRC
+
+* Setup
 :PROPERTIES:
 :header-args: :tangle yes
 :END:
 
-when there's no code loading
+** Package management
 
+*** Package repositories
+
+#+NAME: package_repos
 #+BEGIN_SRC elisp
-(print "Nothin")
+(setq
+ package-archives '(("gnu" . "http://elpa.gnu.org/packages/")
+                    ("org" . "http://orgmode.org/elpa/")
+                    ("melpa" . "http://melpa.org/packages/")
+                    ("melpa-stable" . "http://stable.melpa.org/packages/"))
+ package-archive-priorities '(("melpa" . 1)))
 #+END_SRC
 
-#+RESULTS:
-: Nothin
+*** Use package
+
+#+NAME: use_package
+#+BEGIN_SRC elisp
+(when (not package-archive-contents)
+  (package-refresh-contents)
+  (package-install 'use-package))
+
+(require 'use-package)
+#+END_SRC 
 
 * Stable 
 :PROPERTIES:
 :header-args: :tangle yes
 :END:
 
+Stable stuff shouldn't change too often.
+
+** Exec Path from Shell
+
+Ensures that some env vars are copied from the parent shell.
+
+#+NAME: exec_path
 #+BEGIN_SRC elisp
-(setq exec-path-from-shell-variables (quote ("PATH" "MANPATH" "GOPATH")))
-(exec-path-from-shell-initialize)
+  (setq exec-path-from-shell-variables (quote ("PATH" "MANPATH" "GOPATH")))
+  (exec-path-from-shell-initialize)
+#+END_SRC
+
+** Magit
+
+Magit is ___THE___ git interface
+
+#+BEGIN_SRC elisp
+(use-package magit
+  :ensure t
+  :pin melpa-stable
+  :config
+  (global-set-key (kbd "C-x g") 'magit-status))
+#+END_SRC
+
+** Projectile
+
+#+NAME: projectile
+#+BEGIN_SRC elisp
+(use-package projectile
+  :ensure t
+  :init   (setq projectile-use-git-grep t)
+  :config
+  (projectile-mode t)
+  (setq projectile-enable-caching t)
+  (setq projectile-switch-project-action 'projectile-dired)
+  (define-key projectile-mode-map (kbd "C-c p") 'projectile-command-map)
+  :bind   (("s-f" . projectile-find-file)
+           ("s-F" . projectile-grep)))
+#+END_SRC
+
+*** Projectile makes tramp slow
+
+#+BEGIN_SRC elisp
+(defadvice projectile-project-name (before projectile-project-name-on-tramp activate)
+  (if (tramp-tramp-file-p default-directory)
+      (setq-local projectile-project-name "TrampRemote")
+    )
+  )
+#+END_SRC
+
+** Yasnippet
+
+Snippets organized per mode.
+
+#+BEGIN_SRC elisp
+(use-package yasnippet
+  :diminish yas-minor-mode
+  :commands yas-minor-mode
+  :config
+  (yas-reload-all)
+  (yas-load-directory "~/work/tools/yasnippet-snippets")
+  )
+#+END_SRC
+
+** Company mode
+
+Autocompetion engine.
+
+#+NAME: company_mode
+#+BEGIN_SRC elisp
+(use-package company
+  :diminish company-mode
+  :init
+  (setq
+   company-dabbrev-ignore-case nil
+   company-dabbrev-code-ignore-case nil
+   company-dabbrev-downcase nil
+   company-minimum-prefix-length 2)
+  :config
+  (global-company-mode t)
+  (global-set-key (kbd "s-SPC") 'company-complete))
+#+END_SRC
+
+*** Company quick-help
+
+Company quick help displays docs for completion candidates.
+
+#+NAME: company_quick_help
+#+BEGIN_SRC elisp
+(use-package company-quickhelp
+  :ensure t
+  :config
+  (add-hook 'company-mode-hook (lambda () (company-quickhelp-mode 1))))
+#+END_SRC
+
+** Async
+
+#+BEGIN_SRC elisp
+(use-package async
+  :ensure t
+  :config
+  (add-hook 'dired-mode-hook (lambda () (dired-async-mode 1))))
+#+END_SRC
+
+** Flycheck
+
+#+BEGIN_SRC 
+(use-package flycheck
+  :ensure t)
 #+END_SRC
 
 * Incubating
