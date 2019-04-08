@@ -4,7 +4,7 @@
 
 Add to emacs init file:
 
-#+BEGIN_SRC elisp
+#+BEGIN_SRC emacs-lisp
 (org-babel-load-file "~/emacs_init/init.org")
 #+END_SRC
 
@@ -15,28 +15,68 @@ Add to emacs init file:
 
 ** Package management
 
-*** Package repositories
+
+*** Set up packages
+
+Repositories for packages.
 
 #+NAME: package_repos
-#+BEGIN_SRC elisp
+#+BEGIN_SRC emacs-lisp
+(require 'package)
 (setq
  package-archives '(("gnu" . "http://elpa.gnu.org/packages/")
                     ("org" . "http://orgmode.org/elpa/")
                     ("melpa" . "http://melpa.org/packages/")
                     ("melpa-stable" . "http://stable.melpa.org/packages/"))
  package-archive-priorities '(("melpa" . 1)))
+(package-initialize)
 #+END_SRC
 
 *** Use package
 
+Use package is used to install all the other packages.
+
 #+NAME: use_package
-#+BEGIN_SRC elisp
+#+BEGIN_SRC emacs-lisp
 (when (not package-archive-contents)
   (package-refresh-contents)
   (package-install 'use-package))
 
 (require 'use-package)
 #+END_SRC 
+
+** Font lock mode
+
+Enables font lock mode (syntax highlighting in all buffers).
+
+#+NAME: font_lock_mode
+#+BEGIN_SRC emacs-lisp
+(global-font-lock-mode 1)
+#+END_SRC
+
+** Default browser
+
+o#+name: default_browser
+#+begin_src emacs-lisp 
+(setq browse-url-browser-function `browse-url-chrome)
+#+end_src
+
+** Save backups in tmp dir
+
+#+name backup_in_tmp
+#+begin_src emacs-lisp :tangle yes
+(setq backup-directory-alist
+      `((".*" . ,temporary-file-directory)))
+(setq auto-save-file-name-transforms
+      `((".*" ,temporary-file-directory t)))
+#+end_src
+
+** Theme  
+
+#+begin_src emacs-lisp :tangle yes
+  (load-theme 'tango-dark)
+#+end_src
+
 
 * Stable 
 :PROPERTIES:
@@ -45,32 +85,173 @@ Add to emacs init file:
 
 Stable stuff shouldn't change too often.
 
+** Company mode
+
+Company mode is a completion framework.
+
+*** Install company mode
+
+#+name: install company mode
+#+begin_src emacs-lisp :tangle yes
+(use-package company
+;; don't show compay-mode in modeline
+  :diminish company-mode 
+  :init
+  (setq
+   company-dabbrev-ignore-case nil
+   company-dabbrev-code-ignore-case nil
+   company-dabbrev-downcase nil
+   company-minimum-prefix-length 2)
+  :config
+  (global-company-mode t)
+  (global-set-key (kbd "s-SPC") 'company-complete))
+#+end_src
+
+*** Fuzzy matching in company mode: company-flx
+
+#+name: company-flx
+#+begin_src emacs-lisp :tangle yes
+(use-package company-flx
+  :ensure t
+  :config
+  (add-hook `global-company-mode-hook 'company-flx-mode)
+  )
+#+end_src
+
+*** Documentation on completion candidates: company-quickhelp
+
+#+name: compaby-quickhelp
+#+begin_src emacs-lisp :tangle yes
+(use-package company-quickhelp
+  :ensure t
+  :config
+  (add-hook 'company-mode-hook (lambda () (company-quickhelp-mode 1))))
+#+end_src
+
+** Ido
+
+Ido is a completion framework for minibuffer (ex: finding files, switching buffer)
+
+*** Install flx-ido
+
+Flx ido brings fuzzy matching to ido.
+
+#+name: ido
+#+begin_src emacs-lisp :tangle yes
+(use-package flx-ido
+  :ensure t
+  :demand
+  :init
+  (setq
+   ido-enable-flex-matching t
+   ;; C-d to open directories
+   ;; C-f to revert to find-file
+   ido-show-dot-for-dired t
+   ido-enable-dot-prefix t)
+  :config
+  (ido-mode 1)
+  (ido-everywhere 1)
+  (flx-ido-mode 1)
+  :custom
+  (flx-ido-threshold 20000 "Increase ido threshold")
+  )
+#+end_src
+
+*** Ido vertical
+
+Display ido results vertically
+
+#+name: ido-vertical
+#+begin_src emacs-lisp :tangle yes
+(use-package ido-vertical-mode
+  :ensure t
+  :config
+  (ido-vertical-mode 1))
+#+end_src
+
+*** Ido occur
+
+Occur in minibuffer 
+
+#+name: ido-occur
+#+begin_src emacs-lisp :tangle yes
+(use-package ido-occur
+  :ensure t
+  :bind ("s-o" . ido-occur))
+#+end_src
+
+*** Ido completing read plus
+
+#+name: ido-completing-read+
+#+begin_src emacs-lisp :tangle yes
+(use-package ido-completing-read+
+  :ensure t
+  :config
+  (ido-ubiquitous-mode))
+#+end_src
+
+** Smex
+
+#+name: smex
+#+begin_src emacs-lisp :tangle yes
+(use-package smex
+  :ensure t
+  :bind
+  ("M-x" . 'smex)
+  ("M-X" . 'smex-major-mode-commands)
+  ("C-c C-c M-x" . 'execute-extended-command))
+#+end_src
+
 ** Exec Path from Shell
 
 Ensures that some env vars are copied from the parent shell.
 
 #+NAME: exec_path
-#+BEGIN_SRC elisp
+#+BEGIN_SRC emacs-lisp
   (setq exec-path-from-shell-variables (quote ("PATH" "MANPATH" "GOPATH")))
   (exec-path-from-shell-initialize)
 #+END_SRC
 
-** Magit
+** Git
+*** Git link
+
+Git link generates links to git origin.
+
+#+begin_src emacs-lisp :tangle yes
+  (use-package git-link
+    :ensure t
+    :custom 
+    (git-link-remote-alist
+     (quote
+      (("github" git-link-github)
+       ("bitbucket" git-link-bitbucket)
+       ("gitorious" git-link-gitorious)
+       ("gitlab" git-link-gitlab)
+       ("git.ecd.axway.int" git-link-gitlab)))))
+#+end_src
+
+*** Global git gutter
+
+#+begin_src emacs-lisp :tangle yes
+(global-git-gutter-mode 1)
+#+end_src
+
+*** Magit
 
 Magit is ___THE___ git interface
 
-#+BEGIN_SRC elisp
+#+BEGIN_SRC emacs-lisp
 (use-package magit
   :ensure t
-  :pin melpa-stable
   :config
   (global-set-key (kbd "C-x g") 'magit-status))
 #+END_SRC
 
+
 ** Projectile
 
 #+NAME: projectile
-#+BEGIN_SRC elisp
+#+BEGIN_SRC emacs-lisp
 (use-package projectile
   :ensure t
   :init   (setq projectile-use-git-grep t)
@@ -85,7 +266,7 @@ Magit is ___THE___ git interface
 
 *** Projectile makes tramp slow
 
-#+BEGIN_SRC elisp
+#+BEGIN_SRC emacs-lisp
 (defadvice projectile-project-name (before projectile-project-name-on-tramp activate)
   (if (tramp-tramp-file-p default-directory)
       (setq-local projectile-project-name "TrampRemote")
@@ -93,11 +274,19 @@ Magit is ___THE___ git interface
   )
 #+END_SRC
 
+*** Projectile ibuffer support
+
+#+name: ibuffer-projectile
+#+begin_src emacs-lisp :tangle yes
+(use-package ibuffer-projectile
+  :ensure t)
+#+end_src
+
 ** Yasnippet
 
 Snippets organized per mode.
 
-#+BEGIN_SRC elisp
+#+BEGIN_SRC emacs-lisp
 (use-package yasnippet
   :diminish yas-minor-mode
   :commands yas-minor-mode
@@ -107,40 +296,9 @@ Snippets organized per mode.
   )
 #+END_SRC
 
-** Company mode
-
-Autocompetion engine.
-
-#+NAME: company_mode
-#+BEGIN_SRC elisp
-(use-package company
-  :diminish company-mode
-  :init
-  (setq
-   company-dabbrev-ignore-case nil
-   company-dabbrev-code-ignore-case nil
-   company-dabbrev-downcase nil
-   company-minimum-prefix-length 2)
-  :config
-  (global-company-mode t)
-  (global-set-key (kbd "s-SPC") 'company-complete))
-#+END_SRC
-
-*** Company quick-help
-
-Company quick help displays docs for completion candidates.
-
-#+NAME: company_quick_help
-#+BEGIN_SRC elisp
-(use-package company-quickhelp
-  :ensure t
-  :config
-  (add-hook 'company-mode-hook (lambda () (company-quickhelp-mode 1))))
-#+END_SRC
-
 ** Async
 
-#+BEGIN_SRC elisp
+#+BEGIN_SRC emacs-lisp
 (use-package async
   :ensure t
   :config
@@ -154,7 +312,209 @@ Company quick help displays docs for completion candidates.
   :ensure t)
 #+END_SRC
 
+** Http
+
+#+begin_src emacs-lisp :tangle yes
+(use-package http
+  :ensure t)
+(use-package ob-http
+  :ensure t)
+#+end_src
+
+** JQ
+
+#+name: jq-mode
+#+begin_src emacs-lisp :tangle yes
+(use-package jq-mode
+  :init
+  (require 'ob-jq)
+  :ensure t)
+#+end_src
+
+** Kubernetes
+
+#+begin_src emacs-lisp :tangle yes
+  (use-package kubernetes
+    :ensure t
+    :commands (kubernetes-overview))
+
+  (use-package kubernetes-tramp
+    :ensure t)
+#+end_src
+** Yaml
+
+Lint yaml with flycheck
+
+#+name: flycheck-yamllint
+#+begin_src emacs-lisp :tangle yes
+(use-package flycheck-yamllint
+  :ensure t
+  :defer t
+  :init
+  (progn
+    (eval-after-load 'flycheck
+      '(add-hook 'flycheck-mode-hook 'flycheck-yamllint-setup))))
+#+end_src
+
+** Shell mode
+
+#+name: bash-comppletion
+#+begin_src emacs-lisp :tangle yes
+  (use-package bash-completion
+    :ensure t
+    :config
+    (defun my-shell-hook ()
+      (progn
+	(yas-minor-mode t)
+	(if (tramp-tramp-file-p default-directory)
+	    (progn
+	      (message "Detected tramp shell!")
+	      (setq-local company-backends (list 'company-yasnippet))
+	      (setq-local bash-completion-enabled nil))
+	  (setq-local company-backends (list (list 'company-capf 'company-yasnippet)))
+	  (setq-local company-idle-delay nil)
+	  )
+	))
+    (add-hook 'shell-mode-hook #'my-shell-hook)
+    (bash-completion-setup)
+    )
+#+end_src
+
+** Org mode
+
+
+*** Org bullets
+
+#+name: org-bullets
+#+begin_src emacs-lisp :tangle yes
+(use-package org-bullets
+  :ensure t
+  :config
+  (add-hook 'org-mode-hook (lambda () (org-bullets-mode 1))))
+#+end_src
+
+*** Completion
+
+Company mode in org, disable pcomplete.
+
+#+begin_src emacs-lisp :tangle yes
+(defun my-org-mode-hook ()
+  (add-hook 'completion-at-point-functions 'pcomplete-completions-at-point nil t))
+(add-hook 'org-mode-hook #'my-org-mode-hook)
+(add-hook 'org-mode-hook (lambda () (setq-local company-backends (list 'company-capf 'company-yasnippet))))
+#+end_src
+
+*** Babel
+
+**** Tangle on save
+
+#+begin_src emacs-lisp :tangle yes
+  (add-hook 'org-mode-hook (lambda () (add-hook 'after-save-hook #'org-babel-tangle nil t)))
+#+end_src
+
+**** Languages
+
+#+begin_src emacs-lisp :tangle yes
+(org-babel-do-load-languages
+ 'org-babel-load-languages
+ '((shell      . t)
+   (js         . t)
+   (ditaa      . t)
+   (emacs-lisp . t)
+   (perl       . t)
+   (clojure    . t)
+   (python     . t)
+   (ruby       . t)
+   (dot        . t)
+   (css        . t)
+   (sql        . t)
+   (screen     . t)
+   (plantuml   . t)
+   (restclient   . t)
+   (org        . t)
+   (http       . t)
+   (groovy     . t)
+   (jq         . t)))
+#+end_src
+
+**** Settings
+
+#+begin_src emacs-lisp :tangle yes
+(setq org-confirm-babel-evaluate nil
+      org-src-fontify-natively t
+      org-src-tab-acts-natively t)
+#+end_src
+
+**** Async
+
+#+begin_src emacs-lisp :tangle yes
+(use-package ob-async
+  :ensure t)
+#+end_src
+
+*** Capture
+
+**** Install
+
+#+begin_src emacs-lisp :tangle yes
+(use-package org-capture
+  :bind
+  ("C-c c" . 'org-capture))
+#+end_src
+
+**** Templates
+
+#+begin_src emacs-lisp :tangle yes
+(setq org-capture-templates
+      '(("t" "Todo" entry (file+headline "~/org/gtd.org" "Tasks")
+	 "* TODO %?\n  %i\n  %a")
+	("j" "Journal" entry (file+olp+datetree "~/org/journal.org")
+	 "* %?\nEntered on %U\n  %i\n  %a")
+	("s" "Code Snippet" entry
+	 (file "~/org/snippets.org")
+	 ;; Prompt for tag and language
+	 "* %?\t%^g\n#+BEGIN_SRC %^{language}\n\n#+END_SRC")))
+#+end_src
+
+
 * Incubating
+
+** GPG
+
+GPG for keeping secrets.
+[[https://www.masteringemacs.org/article/keeping-secrets-in-emacs-gnupg-auth-sources][Guide]]
+
+*** External setup
+
+***** Generate a key
+
+#+begin_src bash
+  gpg --gen-key
+#+end_src
+
+*** Set up authsource files
+
+#+begin_src emacs-lisp :tangle yes
+(setq auth-sources
+ '((:source "~/.emacs.d/secrets/.authinfo.gpg")))
+#+end_src
+
+** Org jira
+
+#+begin_src emacs-lisp :tangle yes
+  (setq jiralib-url "https://techweb.axway.com/jira")
+#+end_src
+
+** Forge
+
+Forge integrates magit with gitlab and github.
+
+#+begin_src emacs-lisp :tangle yes
+    (use-package forge
+      :ensure t
+      :custom
+      (forge-alist (cons '("git.ecd.axway.int" "git.ecd.axway.int/api/v4" "git.ecd.axay.int" forge-gitlab-repository) forge-alist)))  
+#+end_src
 
 ** Language server for java
 :PROPERTIES:
@@ -162,15 +522,22 @@ Company quick help displays docs for completion candidates.
 :END:
 
 *** Placeholder
-#+BEGIN_SRC elisp :tangle yes
+#+BEGIN_SRC emacs-lisp :tangle yes
   (print "Nothing")
 #+END_SRC
 
 *** Client install
 
+**** treemacs
+
+#+BEGIN_SRC emacs-lisp
+  (use-package treemacs
+    :ensure t)
+#+END_SRC
+
 **** lsp-mode
 
- #+BEGIN_SRC elisp
+ #+BEGIN_SRC emacs-lisp
    (use-package lsp-mode
      :ensure t
      :demand t
@@ -179,11 +546,16 @@ Company quick help displays docs for completion candidates.
 		 lsp-highlight-symbol-at-point nil))
  #+END_SRC
 
+#+begin_src emacs-lisp :tangle yes
+(use-package lsp-treemacs
+ :ensure t)
+#+end_src
+
  #+RESULTS:
 
 **** company-lsp
 
- #+BEGIN_SRC elisp
+ #+BEGIN_SRC emacs-lisp
  (use-package company-lsp
    :after  company
    :ensure t
@@ -198,7 +570,7 @@ Company quick help displays docs for completion candidates.
 
 
 **** lsp-ui
- #+BEGIN_SRC elisp
+ #+BEGIN_SRC emacs-lisp
  (use-package lsp-ui
    :ensure t
    :demand t
@@ -215,82 +587,88 @@ Company quick help displays docs for completion candidates.
 
 **** Lsp java
 
- #+BEGIN_SRC elisp
+ #+BEGIN_SRC emacs-lisp
     (use-package lsp-java
       :ensure t
       :config
       ;; add lombok as agent for eclipse jdt
       (setq lsp-java-vmargs
 	       (quote("-noverify" "-Xmx1G" "-XX:+UseG1GC" "-XX:+UseStringDeduplication" "-javaagent:/home/vibu/.java/lib/lombok/1.18.2/lombok.jar")))
-      (add-hook 'java-mode-hook 'lsp-java-enable)
-      (add-hook 'java-mode-hook  'flycheck-mode)
-      (add-hook 'java-mode-hook  'company-mode)
-      (add-hook 'java-mode-hook  (lambda () (lsp-ui-flycheck-enable t)))
-      (add-hook 'java-mode-hook  'lsp-ui-sideline-mode)
-      (setq lsp-java--workspace-folders (list "/home/vibu/work/apigov/api-traceability-connector/service/service-rest" "/home/vibu/work/apigov/mgw-controller/business/business-model")))
+      (add-hook 'java-mode-hook #'lsp))
  #+END_SRC
 
+**** Dap mode
+
+#+BEGIN_SRC emacs-lisp
+  (use-package dap-mode
+    :ensure t
+    :after lsp-mode
+    :config
+    (dap-mode t)
+    (dap-ui-mode t))
+
+  (use-package dap-java
+    :after (lsp-java))
+#+END_SRC
+
  #+RESULTS:
- : t
 
 ** Golang
-:PROPERTIES:
-:header-args: :tangle yes
-:END:
 
 Autocompletion
 
-#+BEGIN_SRC elisp
+#+BEGIN_SRC emacs-lisp
 (use-package company-go
   :ensure t)
 #+END_SRC
 
-#+BEGIN_SRC elisp
+#+BEGIN_SRC emacs-lisp :tangle yes
   (use-package go-mode
     :ensure t
     :config
     (add-hook `go-mode-hook (lambda ()
 			      (push "/home/vibu/work/go/bin" exec-path) ;; make sure this is in path
-			      (setq-local company-backends (list (list 'company-go 'company-yasnippet)))
+			      ;; (setq-local company-backends (list (list 'company-go 'company-yasnippet)))
 			      (add-hook `before-save-hook `gofmt-before-save) ;;; gofmt before save
-			      (flycheck-mode)
-			      (local-set-key (kbd "M-.") 'godef-jump)
-			      (local-set-key (kbd "M-*") 'pop-tag-mark)
+			      ;; (flycheck-mode)
+			      ;; (local-set-key (kbd "M-.") 'godef-jump)
+			      ;; (local-set-key (kbd "M-*") 'pop-tag-mark)
 			      (local-set-key (kbd "M-p") 'compile)            ; Invoke compiler
 			      (local-set-key (kbd "M-P") 'recompile)          ; Redo most recent compile cmd
 			      (setq company-idle-delay 0)
 			      (setq gofmt-command "goimports")
-			      (go-guru-hl-identifier-mode) 
+			      (lsp)
+			      ;;(go-guru-hl-identifier-mode) 
 			      )
 	      )
     )
 #+END_SRC
 
-#+BEGIN_SRC elisp
+#+BEGIN_SRC emacs-lisp
   (use-package ob-go
     :ensure t)
 #+END_SRC
 
-#+BEGIN_SRC elisp
+#+BEGIN_SRC emacs-lisp
 (use-package go-rename
   :ensure t)
 #+END_SRC
 
-#+BEGIN_SRC elisp
+#+BEGIN_SRC emacs-lisp
 (use-package go-guru
   :ensure t)
 #+END_SRC
 
 Gotest
 
-#+BEGIN_SRC elisp
+#+BEGIN_SRC emacs-lisp
   (use-package gotest
     :ensure t)
 #+END_SRC
 
 Gometalinter
 
-#+BEGIN_SRC elisp
+#+BEGIN_SRC emacs-lisp
   (use-package flycheck-gometalinter
     :ensure t
     :config
@@ -301,7 +679,7 @@ Gometalinter
 
 Go snippets
 
-#+BEGIN_SRC elisp
+#+BEGIN_SRC emacs-lisp
   (use-package go-snippets
     :ensure t)
 #+END_SRC
@@ -312,7 +690,7 @@ Go snippets
 :header-args: :tangle yes
 :END:
 
-#+BEGIN_SRC elisp
+#+BEGIN_SRC emacs-lisp
   (use-package flycheck-pos-tip
   :ensure t
   :config 
@@ -321,3 +699,34 @@ Go snippets
 				  ))
   )
 #+END_SRC
+** Protobufs
+
+#+BEGIN_SRC emacs-lisp
+  (use-package protobuf-mode
+    :ensure t
+    )
+#+END_SRC
+** Ejira
+
+#+begin_src emacs-lisp :tangle yes
+  (use-package language-detection
+    :ensure t)
+#+end_src
+
+#+begin_src emacs-lisp :tangle yes
+(use-package ejira
+  :load-path "~/.emacs.d/cloned/ejira"
+  :ensure    nil
+  :init
+  (setq jiralib2-url             "https://techweb.axway.com/jira"
+        jiralib2-user-login-name "vbuciuc"
+        ejira-projects           '("APIGOV")
+        ejira-main-project       "APIGOV"
+        ejira-my-org-directory   "~/org/jira/"
+        ejira-done-states        '("Done")
+        ejira-in-progress-states '("In Progress" "In Review" "Testing")
+        ejira-high-priorities    '("High" "Highest")
+        ejira-low-priorities     '("Low" "Lowest")
+        ejira-sprint-field                     'customfield_11730
+        ejira-epic-field                       'customfield_11731))
+#+end_src
