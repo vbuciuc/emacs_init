@@ -14,6 +14,12 @@ Add to emacs init file:
 :header-args: :tangle yes
 :END:
 
+** Use spaces by default
+
+#+BEGIN_SRC emacs-lisp
+  (setq indent-tabs-mode nil)
+#+END_SRC
+
 ** Package management
 
 
@@ -78,6 +84,12 @@ o#+name: default_browser
   (load-theme 'tango-dark)
 #+end_src
 
+** Disable toolbar and menu
+
+#+BEGIN_SRC emacs-lisp :tangle yes
+  (menu-bar-mode -1)
+  (tool-bar-mode -1)
+#+END_SRC
 
 * Stable
 :PROPERTIES:
@@ -209,8 +221,11 @@ Ensures that some env vars are copied from the parent shell.
 
 #+NAME: exec_path
 #+BEGIN_SRC emacs-lisp
+(use-package exec-path-from-shell
+ :ensure t
+ :config
   (setq exec-path-from-shell-variables (quote ("PATH" "MANPATH" "GOPATH")))
-  (exec-path-from-shell-initialize)
+  (exec-path-from-shell-initialize))
 #+END_SRC
 
 ** Git
@@ -233,8 +248,11 @@ Git link generates links to git origin.
 
 *** Global git gutter
 
-#+begin_src emacs-lisp :tangle yes
-(global-git-gutter-mode 1)
+#+begin_src emacs-lisp :tangle no
+  (use-package git-gutter
+    :ensure t
+    :config
+    (global-git-gutter-mode 1))
 #+end_src
 
 *** Magit
@@ -247,7 +265,6 @@ Magit is ___THE___ git interface
   :config
   (global-set-key (kbd "C-x g") 'magit-status))
 #+END_SRC
-
 
 ** Projectile
 
@@ -297,7 +314,6 @@ Snippets organized per mode.
   :commands yas-minor-mode
   :config
   (yas-reload-all)
-  (yas-load-directory "~/work/tools/yasnippet-snippets")
   )
 #+END_SRC
 
@@ -418,6 +434,29 @@ Company mode in org, disable pcomplete.
 #+end_src
 
 **** Languages
+
+***** Install ob-restclient
+
+#+BEGIN_SRC emacs-lisp :tangle yes
+  (use-package ob-restclient
+    :ensure t)
+#+END_SRC
+
+***** Setup plantuml
+
+Plantuml is a tool that's installed as a standalone application.
+
+#+NAME: install-plant-uml :tangle no
+#+BEGIN_SRC bash :dir /sudo:root@localhost:/root
+  apt-get install plantuml
+#+END_SRC
+
+Org mode needs the path to the plantuml jar.
+
+#+NAME: plantuml-jar-path
+#+BEGIN_SRC emacs-lisp :tangle yes
+  (setq org-plantuml-jar-path "/usr/share/plantuml/plantuml.jar")
+#+END_SRC
 
 #+begin_src emacs-lisp :tangle yes
 (org-babel-do-load-languages
@@ -561,8 +600,6 @@ Forge integrates magit with gitlab and github.
  :ensure t)
 #+end_src
 
- #+RESULTS:
-
 **** company-lsp
 
  #+BEGIN_SRC emacs-lisp
@@ -574,10 +611,6 @@ Forge integrates magit with gitlab and github.
    (setq company-lsp-enable-snippet t
          company-lsp-cache-candidates t))
  #+END_SRC
-
- #+RESULTS:
- : t
-
 
 **** lsp-ui
  #+BEGIN_SRC emacs-lisp
@@ -591,9 +624,6 @@ Forge integrates magit with gitlab and github.
          lsp-ui-sideline-show-code-actions t
          lsp-ui-sideline-update-mode 'point))
  #+END_SRC
-
- #+RESULTS:
- : t
 
 **** Lsp java
 
@@ -620,8 +650,6 @@ Forge integrates magit with gitlab and github.
   (use-package dap-java
     :after (lsp-java))
 #+END_SRC
-
- #+RESULTS:
 
 ** Golang
 
@@ -723,7 +751,7 @@ Go snippets
     :ensure t)
 #+end_src
 
-#+begin_src emacs-lisp :tangle yes
+#+begin_src emacs-lisp :tangle no
 (use-package ejira
   :load-path "~/.emacs.d/cloned/ejira"
   :ensure    nil
