@@ -357,7 +357,11 @@ Snippets organized per mode.
 #+begin_src emacs-lisp :tangle yes
   (use-package kubernetes
     :ensure t
-    :commands (kubernetes-overview))
+    :commands (kubernetes-overview)
+    :custom
+    (kubernetes-poll-frequency 3600)
+    (kubernetes-redraw-frequency 3600)
+    )
 
   (use-package kubernetes-tramp
     :ensure t)
