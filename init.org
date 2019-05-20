@@ -772,3 +772,15 @@ Go snippets
         ejira-sprint-field                     'customfield_11730
         ejira-epic-field                       'customfield_11731))
 #+end_src
+** Jsonnet
+
+#+BEGIN_SRC emacs-lisp :tangle yes
+   (use-package jsonnet-mode
+    :ensure t)
+#+END_SRC
+** Org agenda
+
+#+BEGIN_SRC emacs-lisp :tangle yes
+  (setq org-agenda-files (list "~/.org/personal.org" "~/.org/work.org" "~/.org/gtd.org"))
+#+END_SRC
+
