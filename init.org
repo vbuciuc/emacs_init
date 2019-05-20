@@ -514,12 +514,12 @@ Org mode needs the path to the plantuml jar.
 
 #+begin_src emacs-lisp :tangle yes
 (setq org-capture-templates
-      '(("t" "Todo" entry (file+headline "~/org/gtd.org" "Tasks")
+      '(("t" "Todo" entry (file+headline "~/.org/gtd.org" "Tasks")
 	 "* TODO %?\n  %i\n  %a")
-	("j" "Journal" entry (file+olp+datetree "~/org/journal.org")
+	("j" "Journal" entry (file+olp+datetree "~/.org/journal.org")
 	 "* %?\nEntered on %U\n  %i\n  %a")
 	("s" "Code Snippet" entry
-	 (file "~/org/snippets.org")
+	 (file "~/.org/snippets.org")
 	 ;; Prompt for tag and language
 	 "* %?\t%^g\n#+BEGIN_SRC %^{language}\n\n#+END_SRC")))
 #+end_src
@@ -784,3 +784,10 @@ Go snippets
   (setq org-agenda-files (list "~/.org/personal.org" "~/.org/work.org" "~/.org/gtd.org"))
 #+END_SRC
 
+** Org refile
+
+#+BEGIN_SRC emacs-lisp :tangle yes
+(setq org-refile-targets '((org-agenda-files :maxlevel . 3)))
+(setq org-refile-use-outline-path 'file)
+(setq org-refile-allow-creating-parent-nodes 'confirm)
+#+END_SRC
