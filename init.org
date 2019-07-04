@@ -8,7 +8,6 @@ Add to emacs init file:
 (org-babel-load-file "~/emacs_init/init.org")
 #+END_SRC
 
-
 * Setup
 :PROPERTIES:
 :header-args: :tangle yes
@@ -17,7 +16,7 @@ Add to emacs init file:
 ** Use spaces by default
 
 #+BEGIN_SRC emacs-lisp
-  (setq indent-tabs-mode nil)
+  (setq-default indent-tabs-mode nil)
 #+END_SRC
 
 ** Package management
@@ -89,6 +88,12 @@ o#+name: default_browser
 #+BEGIN_SRC emacs-lisp :tangle yes
   (menu-bar-mode -1)
   (tool-bar-mode -1)
+#+END_SRC
+
+** Start emacs server
+
+#+BEGIN_SRC emacs-lisp
+(server-start)
 #+END_SRC
 
 * Stable
@@ -263,7 +268,8 @@ Magit is ___THE___ git interface
 (use-package magit
   :ensure t
   :config
-  (global-set-key (kbd "C-x g") 'magit-status))
+  (global-set-key (kbd "C-x g") 'magit-status)
+  (global-set-key (kbd "M-&") 'with-editor-async-shell-command))
 #+END_SRC
 
 ** Projectile
@@ -485,6 +491,10 @@ Org mode needs the path to the plantuml jar.
    (jq         . t)))
 #+end_src
 
+#+BEGIN_SRC emacs-lisp :tangle yes
+
+#+END_SRC
+
 **** Settings
 
 #+begin_src emacs-lisp :tangle yes
@@ -513,20 +523,30 @@ Org mode needs the path to the plantuml jar.
 **** Templates
 
 #+begin_src emacs-lisp :tangle yes
-(setq org-capture-templates
-      '(("t" "Todo" entry (file+headline "~/.org/gtd.org" "Tasks")
-	 "* TODO %?\n  %i\n  %a")
-	("j" "Journal" entry (file+olp+datetree "~/.org/journal.org")
-	 "* %?\nEntered on %U\n  %i\n  %a")
-	("s" "Code Snippet" entry
-	 (file "~/.org/snippets.org")
-	 ;; Prompt for tag and language
-	 "* %?\t%^g\n#+BEGIN_SRC %^{language}\n\n#+END_SRC")))
+  (setq org-capture-templates
+        '(("n" "Note" entry (file+headline "~/.org/refile.org" "Notes")
+           "* %^{entry} :NOTE:\n    :PROPERTIES:\n    :FROM:%K\n    :END:\n%U\n%?%i\n%a\n" :clock-in t :clock-resume t)
+          ("t" "Todo" entry (file+headline "~/.org/refile.org" "Tasks")
+           "* TODO %?\n%U\n%a\n" :clock-in t :clock-resume t)
+          ("j" "Journal" entry (file+olp+datetree "~/.org/journal.org")
+           "* %?\nEntered on %U\n  %i\n  %a" :clock-in t :clock-resume t)
+          ("s" "Code Snippet" entry
+           (file "~/.org/refile.org")
+           ;; Prompt for tag and language
+           "* %?\t%^g\n#+BEGIN_SRC %^{language}\n\n#+END_SRC")))
 #+end_src
-
 
 * Incubating
 
+** Discovery
+*** Which key
+
+#+BEGIN_SRC emacs-lisp :tangle yes
+  (use-package which-key
+    :ensure t
+    :config
+    (which-key-mode))
+#+END_SRC
 ** GPG
 
 GPG for keeping secrets.
@@ -549,8 +569,16 @@ GPG for keeping secrets.
 
 ** Org jira
 
+I load org jira from a checked out git but if not available should load from package manager.
+
 #+begin_src emacs-lisp :tangle yes
-  (setq jiralib-url "https://techweb.axway.com/jira")
+  (use-package org-jira
+    :load-path "~/emacs_git/org-jira"
+    :ensure t
+    :custom
+    (jiralib-url "https://techweb.axway.com/jira")
+    (org-jira-custom-jqls
+     '((:jql "project = APIGOV AND resolution = Unresolved AND reporter in (currentUser()) order by created DESC" :limit 100 :filename "opened-by-me"))))
 #+end_src
 
 ** Forge
@@ -565,7 +593,6 @@ Forge integrates magit with gitlab and github.
 #+end_src
 
 *** Git secret
-
 
 
 ** Language server for java
@@ -637,7 +664,7 @@ Forge integrates magit with gitlab and github.
       :config
       ;; add lombok as agent for eclipse jdt
       (setq lsp-java-vmargs
-	       (quote("-noverify" "-Xmx1G" "-XX:+UseG1GC" "-XX:+UseStringDeduplication" "-javaagent:/home/vibu/.java/lib/lombok/1.18.2/lombok.jar")))
+	       (quote("-noverify" "-Xmx1G" "-XX:+UseG1GC" "-XX:+UseStringDeduplication" "-javaagent:/home/vibu/.java/lib/lombok/1.18.8/lombok.jar")))
       (add-hook 'java-mode-hook #'lsp))
  #+END_SRC
 
@@ -681,6 +708,7 @@ Autocompletion
 			      (setq gofmt-command "goimports")
 			      (lsp)
 			      ;;(go-guru-hl-identifier-mode)
+                              (setq-local company-backends (list (list company-yankpad company-lsp)))
 			      )
 	      )
     )
@@ -755,22 +783,27 @@ Go snippets
     :ensure t)
 #+end_src
 
+#+BEGIN_SRC emacs-lisp :tangle yes
+(use-package ox-jira
+  :ensure t)
+#+END_SRC
+
 #+begin_src emacs-lisp :tangle no
 (use-package ejira
-  :load-path "~/.emacs.d/cloned/ejira"
-  :ensure    nil
+  :load-path "~/emacs_git/ejira"
   :init
   (setq jiralib2-url             "https://techweb.axway.com/jira"
         jiralib2-user-login-name "vbuciuc"
         ejira-projects           '("APIGOV")
         ejira-main-project       "APIGOV"
-        ejira-my-org-directory   "~/org/jira/"
+        ejira-my-org-directory   "~/.org/jira/"
         ejira-done-states        '("Done")
         ejira-in-progress-states '("In Progress" "In Review" "Testing")
         ejira-high-priorities    '("High" "Highest")
         ejira-low-priorities     '("Low" "Lowest")
         ejira-sprint-field                     'customfield_11730
-        ejira-epic-field                       'customfield_11731))
+        ejira-epic-field                       'customfield_11731
+        request--curl-cookie-jar ""))
 #+end_src
 ** Jsonnet
 
@@ -781,13 +814,130 @@ Go snippets
 ** Org agenda
 
 #+BEGIN_SRC emacs-lisp :tangle yes
-  (setq org-agenda-files (list "~/.org/personal.org" "~/.org/work.org" "~/.org/gtd.org"))
+  (use-package org-agenda
+    :config
+    (setq org-agenda-files (list "~/.org/personal.org" "~/.org/work.org" "~/.org/workish.org" "~/.org/gtd.org" "~/.org/refile.org" "~/.org-jira/APIGOV.org" "~/.org/snippets.org"))
+    :bind
+    ("C-c C-a" . 'org-agenda))
 #+END_SRC
 
 ** Org refile
 
 #+BEGIN_SRC emacs-lisp :tangle yes
-(setq org-refile-targets '((org-agenda-files :maxlevel . 3)))
+(setq org-refile-targets '((org-agenda-files :maxlevel . 9)))
 (setq org-refile-use-outline-path 'file)
 (setq org-refile-allow-creating-parent-nodes 'confirm)
+#+END_SRC
+
+** Org protocol
+
+*** Only once
+
+Create the following file:
+
+#+BEGIN_SRC text :file ~/.local/share/applications/org-protocol-handler.desktop
+[Desktop Entry]
+  Version=1.0
+  Type=Application
+  Exec=/usr/bin/emacsclient %u
+  Icon=/usr/share/icons/hicolor/scalable/apps/emacs.svg
+  StartupNotify=true
+  Terminal=false
+  Categories=Utility;X-XFCE;X-Xfce-Toplevel;
+  MimeType=x-scheme-handler/org-protocol
+  Name=Org Protocol Handler
+  Comment=Invoke emacsclient with org-protocol  
+#+END_SRC
+
+Then add the following line to *~/.local/share/applications/mimeapps.list*:
+: x-scheme-handler/org-protocol=exo-org-protocol-handler.desktop
+
+Update the desktop database with this command
+
+#+BEGIN_SRC bash
+  update-desktop-database  ~/.local/share/applications/
+#+END_SRC
+
+*** Setup chrome
+
+Use: [[https://github.com/mikecrittenden/shortkeys/][mikecrittenden/shortkeys]]
+
+Setup a shortcut for ctrl+alt+c.
+
+In the capture template body can be referred as %i and url+title as %a.
+
+#+BEGIN_SRC js
+  var captureLink =function(){
+      var uri = 'org-protocol://capture?' +
+          'template=n' +
+          '&url=' + encodeURIComponent(window.location.href) +
+          '&title=' + encodeURIComponent(document.title) + 
+          '&body=' + encodeURIComponent(window.getSelection().toString());
+      window.location = uri
+      return uri;
+  };
+  captureLink()
+#+END_SRC
+
+*** Start org protocol
+
+#+BEGIN_SRC emacs-lisp :tangle yes
+  (require 'org-protocol)
+#+END_SRC
+
+#+RESULTS:
+: org-protocol
+
+** Org pomodoro
+
+#+BEGIN_SRC emacs-lisp :tangle yes
+  (use-package org-pomodoro
+    :ensure t)
+#+END_SRC
+
+** Jenkins
+
+#+BEGIN_SRC emacs-lisp :tangle yes
+  (use-package jenkins
+    :load-path "~/emacs_git/jenkins.el"
+    :ensure t)
+#+END_SRC
+
+** Secrets
+
+#+BEGIN_SRC emacs-lisp :tangle yes
+  (if (file-exists-p "~/.emacs.d/secrets/secrets.el.gpg")
+      (load-file "~/.emacs.d/secrets/secrets.el.gpg"))
+#+END_SRC
+
+** Eval in repl
+
+#+BEGIN_SRC emacs-lisp :tangle yes
+   (use-package eval-in-repl
+     :ensure t
+     :config
+     (defun eir-eval-in-shell2 ()
+       "eval-in-repl for shell script (opposite behavior)
+
+   This version has the opposite behavior to the eir-jump-after-eval
+   configuration when invoked to evaluate a line."
+       (interactive)
+       (let ((eir-jump-after-eval (not eir-jump-after-eval)))
+         (eir-eval-in-shell)))
+     (add-hook 'sh-mode-hook
+          '(lambda()
+             (local-set-key (kbd "C-<return>") 'eir-eval-in-shell)))
+     (add-hook 'sh-mode-hook
+               '(lambda()
+                  (local-set-key (kbd "C-M-<return>") 'eir-eval-in-shell2))))
+#+END_SRC
+** Yankpad
+
+[[https://github.com/Kungsgeten/yankpad][Yankpad]] is a snippet management tool over org-mode.
+
+#+BEGIN_SRC emacs-lisp
+(use-package yankpad
+  :ensure t
+  :config
+  (setq yankpad-file "~/.org/yankpad.org"))
 #+END_SRC
