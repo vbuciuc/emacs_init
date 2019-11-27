@@ -21,7 +21,6 @@ Add to emacs init file:
 
 ** Package management
 
-
 *** Set up packages
 
 Repositories for packages.
@@ -30,10 +29,10 @@ Repositories for packages.
 #+BEGIN_SRC emacs-lisp
 (require 'package)
 (setq
- package-archives '(("gnu" . "http://elpa.gnu.org/packages/")
-                    ("org" . "http://orgmode.org/elpa/")
-                    ("melpa" . "http://melpa.org/packages/")
-                    ("melpa-stable" . "http://stable.melpa.org/packages/"))
+ package-archives '(("gnu" . "https://elpa.gnu.org/packages/")
+                    ("org" . "https://orgmode.org/elpa/")
+                    ("melpa" . "https://melpa.org/packages/")
+                    ("melpa-stable" . "https://stable.melpa.org/packages/"))
  package-archive-priorities '(("melpa" . 1)))
 (package-initialize)
 #+END_SRC
@@ -413,6 +412,10 @@ Lint yaml with flycheck
 
 ** Org mode
 
+#+begin_src emacs-lisp :tangle yes
+   (use-package org
+   :ensure t)
+#+end_src
 
 *** Org bullets
 
@@ -468,6 +471,8 @@ Org mode needs the path to the plantuml jar.
   (setq org-plantuml-jar-path "/usr/share/plantuml/plantuml.jar")
 #+END_SRC
 
+***** Setup languages
+
 #+begin_src emacs-lisp :tangle yes
 (org-babel-do-load-languages
  'org-babel-load-languages
@@ -478,6 +483,7 @@ Org mode needs the path to the plantuml jar.
    (perl       . t)
    (clojure    . t)
    (python     . t)
+   
    (ruby       . t)
    (dot        . t)
    (css        . t)
@@ -488,12 +494,10 @@ Org mode needs the path to the plantuml jar.
    (org        . t)
    (http       . t)
    (groovy     . t)
-   (jq         . t)))
+   (jq         . t)
+   (elasticsearch . t)))
 #+end_src
 
-#+BEGIN_SRC emacs-lisp :tangle yes
-
-#+END_SRC
 
 **** Settings
 
@@ -525,7 +529,7 @@ Org mode needs the path to the plantuml jar.
 #+begin_src emacs-lisp :tangle yes
   (setq org-capture-templates
         '(("n" "Note" entry (file+headline "~/.org/refile.org" "Notes")
-           "* %^{entry} :NOTE:\n    :PROPERTIES:\n    :FROM:%K\n    :END:\n%U\n%?%i\n%a\n" :clock-in t :clock-resume t)
+           "* TODO %^{entry} :NOTE:\n    :PROPERTIES:\n    :FROM:%K\n    :END:\n%U\n%? %i\n%a\n" :clock-in t :clock-resume t)
           ("t" "Todo" entry (file+headline "~/.org/refile.org" "Tasks")
            "* TODO %?\n%U\n%a\n" :clock-in t :clock-resume t)
           ("j" "Journal" entry (file+olp+datetree "~/.org/journal.org")
@@ -536,8 +540,8 @@ Org mode needs the path to the plantuml jar.
            "* %?\t%^g\n#+BEGIN_SRC %^{language}\n\n#+END_SRC")))
 #+end_src
 
-* Incubating
 
+* Incubating  
 ** Discovery
 *** Which key
 
@@ -573,9 +577,9 @@ I load org jira from a checked out git but if not available should load from pac
 
 #+begin_src emacs-lisp :tangle yes
   (use-package org-jira
-    :load-path "~/emacs_git/org-jira"
     :ensure t
     :custom
+    (add-to-list 'org-agenda-files org-jira-working-dir)
     (jiralib-url "https://techweb.axway.com/jira")
     (org-jira-custom-jqls
      '((:jql "project = APIGOV AND resolution = Unresolved AND reporter in (currentUser()) order by created DESC" :limit 100 :filename "opened-by-me"))))
@@ -593,7 +597,6 @@ Forge integrates magit with gitlab and github.
 #+end_src
 
 *** Git secret
-
 
 ** Language server for java
 :PROPERTIES:
@@ -623,7 +626,8 @@ Forge integrates magit with gitlab and github.
      :init (setq lsp-inhibit-message nil ; you may set this to t to hide messages from message area
 		 lsp-eldoc-render-all nil
 	         lsp-prefer-flymake nil
-		 lsp-highlight-symbol-at-point nil))
+		 lsp-highlight-symbol-at-point nil)
+     :config (add-hook `javascript-mode-hook (lambda () (lsp))))
  #+END_SRC
 
 #+begin_src emacs-lisp :tangle yes
@@ -664,7 +668,8 @@ Forge integrates magit with gitlab and github.
       :config
       ;; add lombok as agent for eclipse jdt
       (setq lsp-java-vmargs
-	       (quote("-noverify" "-Xmx1G" "-XX:+UseG1GC" "-XX:+UseStringDeduplication" "-javaagent:/home/vibu/.java/lib/lombok/1.18.8/lombok.jar")))
+	    (quote("-noverify" "-Xmx1G" "-XX:+UseG1GC" "-XX:+UseStringDeduplication" "-javaagent:/home/vibu/.java/lib/lombok/1.18.8/lombok.jar")))
+      (setq lsp-java-maven-download-sources t)
       (add-hook 'java-mode-hook #'lsp))
  #+END_SRC
 
@@ -713,6 +718,7 @@ Autocompletion
 	      )
     )
 #+END_SRC
+
 
 #+BEGIN_SRC emacs-lisp
   (use-package ob-go
@@ -796,6 +802,7 @@ Go snippets
         jiralib2-user-login-name "vbuciuc"
         ejira-projects           '("APIGOV")
         ejira-main-project       "APIGOV"
+        ejira-scrum-project      "APIGOV"
         ejira-my-org-directory   "~/.org/jira/"
         ejira-done-states        '("Done")
         ejira-in-progress-states '("In Progress" "In Review" "Testing")
@@ -803,8 +810,16 @@ Go snippets
         ejira-low-priorities     '("Low" "Lowest")
         ejira-sprint-field                     'customfield_11730
         ejira-epic-field                       'customfield_11731
-        request--curl-cookie-jar ""))
+        request--curl-cookie-jar "")
+  :config
+  (require 'ejira-agenda)
+  (add-to-list 'org-agenda-files ejira-org-directory)
+  (org-add-agenda-custom-command
+   '("j" "My JIRA issues"
+     ((ejira-jql "resolution = unresolved and assignee = currentUser()"
+                 ((org-agenda-overriding-header "Assigned to me")))))))
 #+end_src
+
 ** Jsonnet
 
 #+BEGIN_SRC emacs-lisp :tangle yes
@@ -824,9 +839,9 @@ Go snippets
 ** Org refile
 
 #+BEGIN_SRC emacs-lisp :tangle yes
-(setq org-refile-targets '((org-agenda-files :maxlevel . 9)))
-(setq org-refile-use-outline-path 'file)
-(setq org-refile-allow-creating-parent-nodes 'confirm)
+  (setq org-refile-targets '((org-agenda-files :maxlevel . 9)))
+  (setq org-refile-use-outline-path 'file)
+  (setq org-refile-allow-creating-parent-nodes 'confirm)
 #+END_SRC
 
 ** Org protocol
@@ -935,9 +950,41 @@ In the capture template body can be referred as %i and url+title as %a.
 
 [[https://github.com/Kungsgeten/yankpad][Yankpad]] is a snippet management tool over org-mode.
 
-#+BEGIN_SRC emacs-lisp
+#+BEGIN_SRC emacs-lisp :tangle yes
 (use-package yankpad
   :ensure t
   :config
   (setq yankpad-file "~/.org/yankpad.org"))
+#+END_SRC
+** Elasticsearch
+#+BEGIN_SRC emacs-lisp
+  (use-package es-mode
+    :ensure t
+    )
+#+END_SRC
+
+** Javascript
+
+#+BEGIN_SRC emacs-lisp
+  (use-package js
+    :config
+    (add-hook `js-mode-hook (lambda () (lsp)))
+    )
+#+END_SRC
+
+** Typescript 
+
+#+BEGIN_SRC emacs-lisp
+  (use-package typescript-mode
+    :ensure t
+    :config
+    (add-hook `typescript-mode-hook (lambda () (lsp)))
+    )
+#+END_SRC
+
+** Lua
+
+#+BEGIN_SRC emacs-lisp :tangle yes
+  (use-package lua-mode
+    :ensure t)
 #+END_SRC
