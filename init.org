@@ -121,6 +121,7 @@ Company mode is a completion framework.
    company-minimum-prefix-length 2)
   :config
   (global-company-mode t)
+  (setq company-idle-delay 0)
   (global-set-key (kbd "s-SPC") 'company-complete))
 #+end_src
 
@@ -318,6 +319,7 @@ Snippets organized per mode.
   :diminish yas-minor-mode
   :commands yas-minor-mode
   :config
+  (yas-global-mode 1)
   (yas-reload-all)
   )
 #+END_SRC
@@ -435,7 +437,7 @@ Company mode in org, disable pcomplete.
 (defun my-org-mode-hook ()
   (add-hook 'completion-at-point-functions 'pcomplete-completions-at-point nil t))
 (add-hook 'org-mode-hook #'my-org-mode-hook)
-(add-hook 'org-mode-hook (lambda () (setq-local company-backends (list 'company-capf 'company-yasnippet))))
+(add-hook 'org-mode-hook (lambda () (setq-local company-backends (list 'company-capf 'company-yankpad))))
 #+end_src
 
 *** Babel
@@ -483,7 +485,7 @@ Org mode needs the path to the plantuml jar.
    (perl       . t)
    (clojure    . t)
    (python     . t)
-   
+
    (ruby       . t)
    (dot        . t)
    (css        . t)
@@ -540,8 +542,210 @@ Org mode needs the path to the plantuml jar.
            "* %?\t%^g\n#+BEGIN_SRC %^{language}\n\n#+END_SRC")))
 #+end_src
 
+* Incubating
+** Hydra
 
-* Incubating  
+#+BEGIN_SRC emacs-lisp :tangle yes
+  (use-package hydra
+    :ensure t)
+#+END_SRC
+
+#+BEGIN_SRC emacs-lisp :tangle yes
+  (use-package pretty-hydra
+    :ensure t)
+#+END_SRC
+
+*** Buffer switch hydra
+
+From [[https://github.com/abo-abo/hydra/wiki/Switch-to-buffer][here]].
+
+#+BEGIN_SRC emacs-lisp :tangle yes
+  (defun my/name-of-buffers (n)
+    "Return the names of the first N buffers from `buffer-list'."
+    (let ((bns
+           (delq nil
+                 (mapcar
+                  (lambda (b)
+                    (unless (string-match "^ " (setq b (buffer-name b)))
+                      b))
+                  (buffer-list)))))
+      (subseq bns 1 (min (1+ n) (length bns)))))
+
+  ;; Given ("a", "b", "c"), return "1. a, 2. b, 3. c".
+  (defun my/number-names (list)
+    "Enumerate and concatenate LIST."
+    (let ((i 0))
+      (mapconcat
+       (lambda (x)
+         (format "%d. %s" (cl-incf i) x))
+       list
+       ", ")))
+
+  (defvar my/last-buffers nil)
+
+  (defun my/switch-to-buffer (arg)
+    (interactive "p")
+    (switch-to-buffer
+     (nth (1- arg) my/last-buffers)))
+
+  (defun my/switch-to-buffer-other-window (arg)
+    (interactive "p")
+    (switch-to-buffer-other-window
+     (nth (1- arg) my/last-buffers)))
+
+  (global-set-key
+   "\C-o"
+   (defhydra my/switch-to-buffer (:exit t
+                                        :body-pre (setq my/last-buffers
+                                                        (my/name-of-buffers 4)))
+     "
+  _o_ther buffers: %s(my/number-names my/last-buffers)
+
+  "
+     ("o" my/switch-to-buffer "this window")
+     ("O" my/switch-to-buffer-other-window "other window")
+     ("<escape>" nil)))
+#+END_SRC
+
+#+RESULTS:
+: my/switch-to-buffer/body
+
+
+*** Window hydra
+
+#+BEGIN_SRC emacs-lisp :tangle yes
+ (defhydra hydra-window ()
+   "
+Movement^^        ^Split^         ^Switch^		^Resize^
+----------------------------------------------------------------
+_h_ ←       	_v_ertical    	_b_uffer		_q_ X←
+_j_ ↓        	_x_ horizontal	_f_ind files	_w_ X↓
+_k_ ↑        	_z_ undo      	_a_ce 1		_e_ X↑
+_l_ →        	_Z_ reset      	_s_wap		_r_ X→
+_F_ollow		_D_lt Other   	_S_ave		max_i_mize
+_SPC_ cancel	_o_nly this   	_d_elete	
+"
+   ("h" windmove-left )
+   ("j" windmove-down )
+   ("k" windmove-up )
+   ("l" windmove-right )
+   ("q" hydra-move-splitter-left)
+   ("w" hydra-move-splitter-down)
+   ("e" hydra-move-splitter-up)
+   ("r" hydra-move-splitter-right)
+   ("b" ido-switch-buffer)
+   ("f" ido-find-file)
+   ("F" follow-mode)
+   ("a" (lambda ()
+          (interactive)
+          (ace-window 1)
+          (add-hook 'ace-window-end-once-hook
+                    'hydra-window/body))
+       )
+   ("v" (lambda ()
+          (interactive)
+          (split-window-right)
+          (windmove-right))
+       )
+   ("x" (lambda ()
+          (interactive)
+          (split-window-below)
+          (windmove-down))
+       )
+   ("s" (lambda ()
+          (interactive)
+          (ace-window 4)
+          (add-hook 'ace-window-end-once-hook
+                    'hydra-window/body)))
+   ("S" save-buffer)
+   ("d" delete-window)
+   ("D" (lambda ()
+          (interactive)
+          (ace-window 16)
+          (add-hook 'ace-window-end-once-hook
+                    'hydra-window/body))
+       )
+   ("o" delete-other-windows)
+   ("i" ace-maximize-window)
+   ("z" (progn
+          (winner-undo)
+          (setq this-command 'winner-undo))
+   )
+   ("Z" winner-redo)
+   ("SPC" nil)
+   )
+
+ (global-set-key (kbd "<f10>") 'hydra-window/body)
+#+END_SRC
+
+#+RESULTS:
+: hydra-window/body
+
+*** Org mode hydra
+
+#+BEGIN_SRC emacs-lisp :tangle yes
+  (pretty-hydra-define org-global
+    (:title "Org global" :hint none)
+    ("Capture"
+     (("c" org-capture "Capture")
+      ("g" org-capture-goto-last-stored "Goto Last"))
+     ))
+
+  (define-key global-map (kbd "<f12>") 'org-global/body)
+#+END_SRC
+
+Lsp mode:
+
+#+BEGIN_SRC emacs-lisp
+(defhydra hydra-lsp (:exit t :hint nil)
+  "
+ Buffer^^               Server^^                   Symbol
+-------------------------------------------------------------------------------------
+ [_f_] format           [_M-r_] restart            [_d_] declaration  [_i_] implementation  [_o_] documentation
+ [_m_] imenu            [_S_]   shutdown           [_D_] definition   [_t_] type            [_r_] rename
+ [_x_] execute action   [_M-s_] describe session   [_R_] references   [_s_] signature"
+  ("d" lsp-find-declaration)
+  ("D" lsp-ui-peek-find-definitions)
+  ("R" lsp-ui-peek-find-references)
+  ("i" lsp-ui-peek-find-implementation)
+  ("t" lsp-find-type-definition)
+  ("s" lsp-signature-help)
+  ("o" lsp-describe-thing-at-point)
+  ("r" lsp-rename)
+
+  ("f" lsp-format-buffer)
+  ("m" lsp-ui-imenu)
+  ("x" lsp-execute-code-action)
+
+  ("M-s" lsp-describe-session)
+  ("M-r" lsp-restart-workspace)
+  ("S" lsp-shutdown-workspace))
+
+  (define-key global-map (kbd "<f11>") 'hydra-lsp/body)
+#+END_SRC
+
+*** Artist mode hydra
+
+#+BEGIN_SRC emacs-lisp :tangle yes
+  (defhydra hydra-artist (:exit t :hint nil)
+    "
+  Shapes^^		Operations^^
+  ----------------------------------------
+  _r_ectangle		_C_ut-rectangle
+  _p_oly-line		C_O_py-rectangle
+  			_P_aste"		
+  ("r" artist-select-op-rectangle)
+  ("p" artist-select-op-poly-line)
+  ("C" artist-select-op-cut-rectangle)
+  ("O" artist-select-op-copy-rectangle)
+  ("P" artist-select-op-paste)
+  )
+  ;; (bind-key "C-c h" 'hydra-artist/body artist-mode-map)
+#+END_SRC
+
+#+RESULTS:
+: hydra-artist/body
+
 ** Discovery
 *** Which key
 
@@ -681,8 +885,9 @@ Forge integrates magit with gitlab and github.
     :after lsp-mode
     :config
     (dap-mode t)
-    (dap-ui-mode t))
-
+    (dap-ui-mode t)
+    ; don't start lsp in polymode
+    )
   (use-package dap-java
     :after (lsp-java))
 #+END_SRC
@@ -700,6 +905,7 @@ Autocompletion
   (use-package go-mode
     :ensure t
     :config
+
     (add-hook `go-mode-hook (lambda ()
 			      (push "/home/vibu/work/go/bin" exec-path) ;; make sure this is in path
 			      ;; (setq-local company-backends (list (list 'company-go 'company-yasnippet)))
@@ -709,16 +915,44 @@ Autocompletion
 			      ;; (local-set-key (kbd "M-*") 'pop-tag-mark)
 			      (local-set-key (kbd "M-p") 'compile)            ; Invoke compiler
 			      (local-set-key (kbd "M-P") 'recompile)          ; Redo most recent compile cmd
-			      (setq company-idle-delay 0)
-			      (setq gofmt-command "goimports")
 			      (lsp)
 			      ;;(go-guru-hl-identifier-mode)
-                              (setq-local company-backends (list (list company-yankpad company-lsp)))
+                              (setq-local company-backends (list (list 'company-yankpad 'company-lsp)))
 			      )
 	      )
     )
 #+END_SRC
 
+*** golangci-lint
+
+#+BEGIN_SRC emacs-lisp :tangle yes
+(use-package flycheck-golangci-lint
+  :ensure t
+  :hook (go-mode . flycheck-golangci-lint-setup))
+#+END_SRC
+
+*** Go mode hydra
+
+#+BEGIN_SRC emacs-lisp :tangle yes
+  (defun go-test-verbose ()
+    (interactive)
+    (setq-local go-test-verbose (not go-test-verbose)))
+
+  (pretty-hydra-define hydra-go
+    (:title "Go Mode")
+    ("Test"
+     (
+      ("v" go-test-verbose "verbose" :toggle t)
+      ("l" go-test-current-test-cache "last")
+      ("c" go-test-current-test "current")
+      ("f"  go-test-current-file "file"))
+     ))
+
+  (bind-key "C-c h" 'hydra-go/body go-mode-map)
+#+END_SRC
+
+#+RESULTS:
+: hydra-go/body
 
 #+BEGIN_SRC emacs-lisp
   (use-package ob-go
@@ -831,7 +1065,7 @@ Go snippets
 #+BEGIN_SRC emacs-lisp :tangle yes
   (use-package org-agenda
     :config
-    (setq org-agenda-files (list "~/.org/personal.org" "~/.org/work.org" "~/.org/workish.org" "~/.org/gtd.org" "~/.org/refile.org" "~/.org-jira/APIGOV.org" "~/.org/snippets.org"))
+    (setq org-agenda-files (list "~/.org/knowledge.org" "~/.org/personal.org" "~/.org/work.org" "~/.org/workish.org" "~/.org/gtd.org" "~/.org/refile.org" "~/.org-jira/APIGOV.org" "~/.org/snippets.org"))
     :bind
     ("C-c C-a" . 'org-agenda))
 #+END_SRC
@@ -861,7 +1095,7 @@ Create the following file:
   Categories=Utility;X-XFCE;X-Xfce-Toplevel;
   MimeType=x-scheme-handler/org-protocol
   Name=Org Protocol Handler
-  Comment=Invoke emacsclient with org-protocol  
+  Comment=Invoke emacsclient with org-protocol
 #+END_SRC
 
 Then add the following line to *~/.local/share/applications/mimeapps.list*:
@@ -886,7 +1120,7 @@ In the capture template body can be referred as %i and url+title as %a.
       var uri = 'org-protocol://capture?' +
           'template=n' +
           '&url=' + encodeURIComponent(window.location.href) +
-          '&title=' + encodeURIComponent(document.title) + 
+          '&title=' + encodeURIComponent(document.title) +
           '&body=' + encodeURIComponent(window.getSelection().toString());
       window.location = uri
       return uri;
@@ -953,6 +1187,8 @@ In the capture template body can be referred as %i and url+title as %a.
 #+BEGIN_SRC emacs-lisp :tangle yes
 (use-package yankpad
   :ensure t
+  :init
+  (require 'cl)
   :config
   (setq yankpad-file "~/.org/yankpad.org"))
 #+END_SRC
@@ -972,7 +1208,7 @@ In the capture template body can be referred as %i and url+title as %a.
     )
 #+END_SRC
 
-** Typescript 
+** Typescript
 
 #+BEGIN_SRC emacs-lisp
   (use-package typescript-mode
@@ -988,3 +1224,105 @@ In the capture template body can be referred as %i and url+title as %a.
   (use-package lua-mode
     :ensure t)
 #+END_SRC
+** Password store
+*** Install pass
+
+#+BEGIN_SRC bash :tangle no :dir /sudo:localhost:/tmp :session root
+  apt install pass
+#+END_SRC
+
+*** Initialize pass
+
+#+BEGIN_SRC bash :tangle no
+  pass init vbuciuc@axway.com
+  pass git init
+#+END_SRC
+
+*** Install pass mode
+
+
+#+BEGIN_SRC emacs-lisp
+  (use-package pass
+    :ensure t
+    :config
+    (auth-source-pass-enable))
+#+END_SRC
+
+[[https://github.com/DamienCassou/auth-password-store][Auth sources with pass]]
+
+#+BEGIN_QUOTE
+passwdstring
+host: host.domain.com
+user: user@domain.com
+port: 993
+#+END_QUOTE
+
+** Smart Parens
+
+#+BEGIN_SRC emacs-lisp :tangle yes
+(use-package smartparens
+  :ensure t
+  :bind
+  ("C-'" . hydra-smartparens/body)
+  :config
+  (require 'smartparens-config)
+  (add-hook 'go-mode-hook #'smartparens-mode)
+  )
+#+END_SRC
+
+#+BEGIN_SRC emacs-lisp :tangle yes
+  (defhydra hydra-smartparens (:hint nil)
+  "
+ Moving^^^^                       Slurp & Barf^^   Wrapping^^            Sexp juggling^^^^               Destructive
+------------------------------------------------------------------------------------------------------------------------
+ [_a_] beginning  [_n_] down      [_h_] bw slurp   [_R_]   rewrap        [_S_] split   [_t_] transpose   [_c_] change inner  [_w_] copy
+ [_e_] end        [_N_] bw down   [_H_] bw barf    [_u_]   unwrap        [_s_] splice  [_A_] absorb      [_C_] change outer
+ [_f_] forward    [_p_] up        [_l_] slurp      [_U_]   bw unwrap     [_r_] raise   [_E_] emit        [_k_] kill          [_g_] quit
+ [_b_] backward   [_P_] bw up     [_L_] barf       [_(__{__[_] wrap (){}[]   [_j_] join    [_o_] convolute   [_K_] bw kill       [_q_] quit"
+  ;; Moving
+  ("a" sp-beginning-of-sexp)
+  ("e" sp-end-of-sexp)
+  ("f" sp-forward-sexp)
+  ("b" sp-backward-sexp)
+  ("n" sp-down-sexp)
+  ("N" sp-backward-down-sexp)
+  ("p" sp-up-sexp)
+  ("P" sp-backward-up-sexp)
+
+  ;; Slurping & barfing
+  ("h" sp-backward-slurp-sexp)
+  ("H" sp-backward-barf-sexp)
+  ("l" sp-forward-slurp-sexp)
+  ("L" sp-forward-barf-sexp)
+
+  ;; Wrapping
+  ("R" sp-rewrap-sexp)
+  ("u" sp-unwrap-sexp)
+  ("U" sp-backward-unwrap-sexp)
+  ("(" sp-wrap-round)
+  ("{" sp-wrap-curly)
+  ("[" sp-wrap-square)
+
+  ;; Sexp juggling
+  ("S" sp-split-sexp)
+  ("s" sp-splice-sexp)
+  ("r" sp-raise-sexp)
+  ("j" sp-join-sexp)
+  ("t" sp-transpose-sexp)
+  ("A" sp-absorb-sexp)
+  ("E" sp-emit-sexp)
+  ("o" sp-convolute-sexp)
+
+  ;; Destructive editing
+  ("c" sp-change-inner :exit t)
+  ("C" sp-change-enclosing :exit t)
+  ("k" sp-kill-sexp)
+  ("K" sp-backward-kill-sexp)
+  ("w" sp-copy-sexp)
+
+  ("q" nil)
+  ("g" nil))
+#+END_SRC
+
+#+RESULTS:
+: hydra-smartparens/body
