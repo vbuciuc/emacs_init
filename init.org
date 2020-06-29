@@ -33,7 +33,7 @@ Repositories for packages.
                     ("org" . "https://orgmode.org/elpa/")
                     ("melpa" . "https://melpa.org/packages/")
                     ("melpa-stable" . "https://stable.melpa.org/packages/"))
- package-archive-priorities '(("melpa" . 1)))
+ package-archive-priorities '(("melpa-stable" . 10) ("melpa" . 1)))
 (package-initialize)
 #+END_SRC
 
@@ -138,7 +138,7 @@ Company mode is a completion framework.
 
 *** Documentation on completion candidates: company-quickhelp
 
-#+name: compaby-quickhelp
+#+name: company-quickhelp
 #+begin_src emacs-lisp :tangle yes
 (use-package company-quickhelp
   :ensure t
@@ -229,7 +229,7 @@ Ensures that some env vars are copied from the parent shell.
 (use-package exec-path-from-shell
  :ensure t
  :config
-  (setq exec-path-from-shell-variables (quote ("PATH" "MANPATH" "GOPATH")))
+  (setq exec-path-from-shell-variables (quote ("PATH" "MANPATH" "GOPATH" "KUBECONFIG")))
   (exec-path-from-shell-initialize))
 #+END_SRC
 
@@ -391,7 +391,7 @@ Lint yaml with flycheck
 ** Shell mode
 
 #+name: bash-comppletion
-#+begin_src emacs-lisp :tangle yes
+#+begin_src emacs-lisp 
   (use-package bash-completion
     :ensure t
     :config
@@ -401,9 +401,9 @@ Lint yaml with flycheck
 	(if (tramp-tramp-file-p default-directory)
 	    (progn
 	      (message "Detected tramp shell!")
-	      (setq-local company-backends (list 'company-yasnippet))
+	      (setq-local company-backends (list 'company-yankpad 'company-yasnippet))
 	      (setq-local bash-completion-enabled nil))
-	  (setq-local company-backends (list (list 'company-capf 'company-yasnippet)))
+	  (setq-local company-backends (list (list 'company-capf 'company-yankpad 'company-yasnippet)))
 	  (setq-local company-idle-delay nil)
 	  )
 	))
@@ -412,12 +412,285 @@ Lint yaml with flycheck
     )
 #+end_src
 
+#+BEGIN_SRC emacs-lisp :tangle yes
+  (use-package company-native-complete
+    :ensure t
+    :config
+    (with-eval-after-load 'shell
+      (native-complete-setup-bash))
+    (defun my-shell-hook ()
+      (yas-minor-mode t)
+      (setq-local company-backends (list (list 'company-native-complete 'company-yankpad 'company-yasnippet))))
+    (add-hook 'shell-mode-hook #'my-shell-hook)
+    )
+#+END_SRC
+
 ** Org mode
 
 #+begin_src emacs-lisp :tangle yes
    (use-package org
    :ensure t)
 #+end_src
+
+*** Org-roam
+
+Interlinking notes:
+
+#+BEGIN_SRC emacs-lisp :tangle yes
+(use-package org-roam
+      :hook 
+      (after-init . org-roam-mode)
+      :custom
+      (org-roam-directory "~/.org/roam")
+      :ensure t
+      :bind (:map org-roam-mode-map
+              (("C-c n l" . org-roam)
+               ("C-c n f" . org-roam-find-file)
+               ("C-c n b" . org-roam-switch-to-buffer)
+               ("C-c n g" . org-roam-show-graph))
+              :map org-mode-map
+              (("C-c n i" . org-roam-insert))))
+#+END_SRC
+
+#+BEGIN_SRC  emacs-lisp :tangle yes
+  (use-package company-org-roam
+    :ensure t)    
+#+END_SRC
+
+*** Org-journal
+
+I set up org-journal to work with org-roam. One org file per day, each file is in org-roam.
+
+#+BEGIN_SRC emacs-lisp :tangle yes
+   (use-package org-journal
+     :ensure t
+     :bind
+     ("C-c n j" . org-journal-new-entry)
+     :custom
+     (org-journal-date-prefix "#+TITLE: ")
+     (org-journal-time-prefix "* ")
+     (org-journal-file-format "%Y-%m-%d.org")
+     (org-journal-dir "~/.org/roam")
+     (org-journal-date-format "%A, %d %B %Y")
+     :config
+     (defun org-journal-find-location ()
+       ;; Open today's journal, but specify a non-nil prefix argument in order to
+       ;; inhibit inserting the heading; org-capture will insert the heading.
+       (org-journal-new-entry t)
+       ;; Position point on the journal's top-level heading so that org-capture
+       ;; will add the new entry as a child entry.
+       (goto-char (point-min))))
+#+END_SRC
+
+*** Org protocol
+
+Org protocol allows, among other things, capturing content from outside emacs.
+
+**** Only once
+
+ Create the following file:
+
+ #+BEGIN_SRC text :file ~/.local/share/applications/org-protocol-handler.desktop
+ [Desktop Entry]
+   Version=1.0
+   Type=Application
+   Exec=/usr/local/bin/emacsclient %u
+   Icon=/usr/share/icons/hicolor/scalable/apps/emacs.svg
+   StartupNotify=true
+   Terminal=false
+   Categories=Utility;X-XFCE;X-Xfce-Toplevel;
+   MimeType=x-scheme-handler/org-protocol
+   Name=Org Protocol Handler
+   Comment=Invoke emacsclient with org-protocol
+ #+END_SRC
+
+ Then add the following line to *~/.local/share/applications/mimeapps.list*:
+ : x-scheme-handler/org-protocol=exo-org-protocol-handler.desktop
+
+ Update the desktop database with this command
+
+ #+BEGIN_SRC bash
+   update-desktop-database  ~/.local/share/applications/
+ #+END_SRC
+
+**** Start org protocol
+
+ #+BEGIN_SRC emacs-lisp :tangle yes
+   (require 'org-protocol)
+ #+END_SRC
+
+*** Capturing
+
+Org capture helps with taking specialized quick notes and capturing content outside of emacs.
+
+**** org-capture
+
+#+begin_src emacs-lisp :tangle yes
+(use-package org-capture
+  :bind
+  ("C-c c" . 'org-capture)
+  :custom
+  (org-capture-templates '(
+                           ;; I use j template to capture journal entries in org-journal
+                           ("j" "Journal" entry (function org-journal-find-location)
+                            "* %(format-time-string org-journal-time-format)%^{Title}\n%i%?")                           
+                           )
+                         )
+  )
+#+end_src
+**** Templates
+**** org-protocol-capture-html
+
+ [[https://github.com/alphapapa/org-protocol-capture-html][org-protocol-capture-html]] builds on org-capture and uses panadoc to convert html to org-mode
+
+ Clone it:
+
+ #+BEGIN_SRC bash
+   git clone git@github.com:alphapapa/org-protocol-capture-html.git ~/emacs_git/org-protocol-capture-html
+ #+END_SRC
+
+ It needs an org-capture template that I add here. The template adds the capture as an entry in the current org-journal file.
+
+ #+BEGIN_SRC emacs-lisp
+   (use-package org-protocol-capture-html
+     :load-path "~/emacs_git/org-protocol-capture-html/"
+     :after 
+     org-protocol
+     org-capture
+     :config
+     (add-to-list 'org-capture-templates '("w" "Web site" entry (function org-journal-find-location)
+          "* %(format-time-string org-journal-time-format)%^{Title} :website:\n %a \n\n%U %?\n\n%:initial"))
+     )
+ #+END_SRC
+
+
+
+ Set it up
+
+
+ Deprecated
+
+ #+begin_src emacs-lisp :tangle no
+   (setq org-capture-templates
+         '(setq org-capture-templates
+                '(
+                  ("w" "Web site" entry (function org-journal-find-location)
+                   "* %(format-time-string org-journal-time-format)%^{Title} :website:\n %a \n\n%U %?\n\n%:initial")
+                  ("j" "Journal" entry (function org-journal-find-location)
+                   "* %(format-time-string org-journal-time-format)%^{Title}\n%i%?"))
+                ;; ("n" "Note" entry (file+headline "~/.org/refile.org" "Notes")
+                ;;  "* TODO %^{entry} :NOTE:\n    :PROPERTIES:\n    :FROM:%K\n    :END:\n%U\n%? %i\n%a\n" :clock-in t :clock-resume t)
+                ;; ("t" "Todo" entry (file+headline "~/.org/refile.org" "Tasks")
+                ;;  "* TODO %?\n%U\n%a\n" :clock-in t :clock-resume t)
+                ;; ("j" "Journal" entry (file+olp+datetree "~/.org/journal.org")
+                ;;  "* %?\nEntered on %U\n  %i\n  %a" :clock-in t :clock-resume t)
+                ;; ("s" "Code Snippet" entry
+                ;;  (file "~/.org/refile.org")
+                ;;  ;; Prompt for tag and language
+           ;;  "* %?\t%^g\n#+BEGIN_SRC %^{language}\n\n#+END_SRC"))
+ o               ))
+        
+ #+end_src
+
+**** Setup chrome
+
+ Use: [[https://github.com/mikecrittenden/shortkeys/][mikecrittenden/shortkeys]]
+
+***** Example
+
+Setup a shortcut for ctrl+alt+c.
+
+In the capture template body can be referred as %i and url+title as %a.
+
+#+BEGIN_SRC js
+   var captureLink =function(){
+       var uri = 'org-protocol://capture?' +
+           'template=n' +
+           '&url=' + encodeURIComponent(window.location.href) +
+           '&title=' + encodeURIComponent(document.title) +
+           '&body=' + encodeURIComponent(window.getSelection().toString());
+       window.location = uri
+       return uri;
+   };
+   captureLink()
+#+END_SRC
+
+***** Full export 
+
+In chrome I bind the following key shortcuts:
+
+- ctrl+alt+c - plain capture (no org-protocol-capture-html)
+- shift+alt+c - capture with org-protocol-capture-html
+- ctrl+alt+shft+c - capture with org-protocol-capture-html using eww-readable (tries to select only test context from a site)
+
+#+BEGIN_SRC js
+[
+  {
+    "action": "javascript",
+    "activeInInputs": true,
+    "blacklist": "false",
+    "code": "var captureLink =function(){\n  var uri = 'org-protocol://capture?' +\n        'template=n' +\n        '&url=' + encodeURIComponent(window.location.href) +\n        '&title=' + encodeURIComponent(document.title) + \n        '&body=' + encodeURIComponent(window.getSelection().toString());\n  window.location = uri\n  return uri;\n};\n\ncaptureLink()",
+    "customName": "org-protocol-capture",
+    "exported": true,
+    "key": "ctrl+alt+c",
+    "open": false,
+    "sites": "*mail.google.com*",
+    "sitesArray": [
+      "*mail.google.com*"
+    ]
+  },
+  {
+    "action": "javascript",
+    "activeInInputs": true,
+    "blacklist": "false",
+    "code": "var storeLink =function(){\n  var uri = 'org-protocol://store-link?url='+encodeURIComponent(location.href)\n  window.location = uri\n  return uri;\n}\n\nstoreLink()",
+    "customName": "org-protocol-store-link",
+    "exported": true,
+    "key": "ctrl+alt+k",
+    "open": false,
+    "sites": "*mail.google.com*",
+    "sitesArray": [
+      "*mail.google.com*"
+    ]
+  },
+  {
+    "action": "javascript",
+    "blacklist": false,
+    "code": "var captureLink =function(){\n  var uri = 'org-protocol://capture-eww-readable?' +\n        'template=w' +\n        '&url=' + encodeURIComponent(window.location.href) +\n        '&title=' + encodeURIComponent(document.title || \"[untitled page]\") + \n        '&body=' + encodeURIComponent(window.getSelection().toString());\n  window.location = uri\n  return uri;\n};\n\ncaptureLink()",
+    "customName": "org-protocol-capture-html-eww",
+    "exported": true,
+    "key": "ctrl+alt+shift+C",
+    "open": false,
+    "sites": "*mail.google.com*",
+    "sitesArray": [
+      "*mail.google.com*"
+    ]
+  },
+  {
+    "action": "javascript",
+    "blacklist": false,
+    "code": "javascript:location.href = 'org-protocol://capture-html?template=w&url=' + encodeURIComponent(location.href) + '&title=' + encodeURIComponent(document.title || \"[untitled page]\") + '&body=' + encodeURIComponent(function () {var html = \"\"; if (typeof document.getSelection != \"undefined\") {var sel = document.getSelection(); if (sel.rangeCount) {var container = document.createElement(\"div\"); for (var i = 0, len = sel.rangeCount; i < len; ++i) {container.appendChild(sel.getRangeAt(i).cloneContents());} html = container.innerHTML;}} else if (typeof document.selection != \"undefined\") {if (document.selection.type == \"Text\") {html = document.selection.createRange().htmlText;}} var relToAbs = function (href) {var a = document.createElement(\"a\"); a.href = href; var abs = a.protocol + \"//\" + a.host + a.pathname + a.search + a.hash; a.remove(); return abs;}; var elementTypes = [['a', 'href'], ['img', 'src']]; var div = document.createElement('div'); div.innerHTML = html; elementTypes.map(function(elementType) {var elements = div.getElementsByTagName(elementType[0]); for (var i = 0; i < elements.length; i++) {elements[i].setAttribute(elementType[1], relToAbs(elements[i].getAttribute(elementType[1])));}}); return div.innerHTML;}());",
+    "customName": "org-protocol-capture-html",
+    "exported": true,
+    "key": "alt+shift+c",
+    "open": false,
+    "sites": "*mail.google.com*",
+    "sitesArray": [
+      "*mail.google.com*"
+    ]
+  }
+]
+#+END_SRC
+
+*** Org download
+
+Download and attach images to org files
+
+#+BEGIN_SRC emacs-lisp 
+(use-package org-download
+  :config
+  (setq org-download-screenshot-method "xfce4-screenshooter -r -o cat > %s"))
+#+END_SRC
 
 *** Org bullets
 
@@ -435,9 +708,10 @@ Company mode in org, disable pcomplete.
 
 #+begin_src emacs-lisp :tangle yes
 (defun my-org-mode-hook ()
-  (add-hook 'completion-at-point-functions 'pcomplete-completions-at-point nil t))
+  (add-hook 'completion-at-point-functions 'pcomplete-completions-at-point nil t)
+  (setq-local company-backends (list (list 'company-capf 'company-yankpad 'company-org-roam)))
+)
 (add-hook 'org-mode-hook #'my-org-mode-hook)
-(add-hook 'org-mode-hook (lambda () (setq-local company-backends (list 'company-capf 'company-yankpad))))
 #+end_src
 
 *** Babel
@@ -516,39 +790,91 @@ Org mode needs the path to the plantuml jar.
   :ensure t)
 #+end_src
 
-*** Capture
+** K3D
 
-**** Install
+Utility functions around [[https://github.com/rancher/k3d][k3d]]
 
-#+begin_src emacs-lisp :tangle yes
-(use-package org-capture
-  :bind
-  ("C-c c" . 'org-capture))
-#+end_src
+#+BEGIN_SRC emacs-lisp
+  (defun vibu/toggle-value-in-separated-string (separated separator value)
+    (let* ((split (split-string (or separated "") separator t))
+           (toggled (-contains? split value)))
+      (if toggled
+          (set 'split (-remove-item value split))
+        (add-to-list 'split value))
+      (and split (--reduce-r (format "%s%s%s" acc separator it) split))
+   ))
 
-**** Templates
+  (defun k3d/list-clusters ()
+    (-map (lambda (s) (string-trim (nth 1 (split-string s "|"))))
+           (nbutlast (nthcdr 3
+                             (split-string
+                              (or (with-output-to-string
+                                    (call-process-shell-command "k3d list" nil standard-output))
+                                  (list)
+                                  )
+                              "\n" t)
+                             )
+                     )))
 
-#+begin_src emacs-lisp :tangle yes
-  (setq org-capture-templates
-        '(("n" "Note" entry (file+headline "~/.org/refile.org" "Notes")
-           "* TODO %^{entry} :NOTE:\n    :PROPERTIES:\n    :FROM:%K\n    :END:\n%U\n%? %i\n%a\n" :clock-in t :clock-resume t)
-          ("t" "Todo" entry (file+headline "~/.org/refile.org" "Tasks")
-           "* TODO %?\n%U\n%a\n" :clock-in t :clock-resume t)
-          ("j" "Journal" entry (file+olp+datetree "~/.org/journal.org")
-           "* %?\nEntered on %U\n  %i\n  %a" :clock-in t :clock-resume t)
-          ("s" "Code Snippet" entry
-           (file "~/.org/refile.org")
-           ;; Prompt for tag and language
-           "* %?\t%^g\n#+BEGIN_SRC %^{language}\n\n#+END_SRC")))
-#+end_src
+  (defun k3d/delete-cluster (name)
+    (interactive (list (completing-read "Cluster Name: " (k3d/list-clusters))))
+    (message (with-output-to-string
+      (call-process-shell-command (format "k3d delete --name %s" name) nil standard-output)))
+    )
 
-* Incubating
+  (defun k3d/start-cluster (name)
+    (interactive (list (completing-read "Cluster Name: " (k3d/list-clusters))))
+    (message (with-output-to-string
+      (call-process-shell-command (format "k3d start --name %s" name) nil standard-output)))
+    )
+
+  (defun k3d/get-kubeconfig (name)
+    (string-trim (with-output-to-string
+                   (call-process-shell-command (format "k3d get-kubeconfig --name %s" name) nil standard-output)))
+    )
+
+  (defun k3d/toggle-cluster-config (name)
+    (interactive (list (completing-read "Cluster Name: " (k3d/list-clusters))))
+    (setenv "KUBECONFIG" (or
+                          (vibu/toggle-value-in-separated-string (getenv "KUBECONFIG") ":" (k3d/get-kubeconfig name))
+                          ""))
+    )
+#+END_SRC
+**** ob-tmux
+
+Enable executions of babel shell blocks in a tmux session inside a terminal
+ 
+#+BEGIN_SRC emacs-lisp :tangle yes
+(use-package ob-tmux
+  ;; Install package automatically (optional)
+  :ensure t
+  :custom
+  (org-babel-default-header-args:tmux
+   '((:results . "silent")	;
+     (:session . "default")	; The default tmux session to send code to
+     (:socket  . nil)))		; The default tmux socket to communicate with
+  ;; The tmux sessions are prefixed with the following string.
+  ;; You can customize this if you like.
+  (org-babel-tmux-session-prefix "ob-")
+  ;; The terminal that will be used.
+  ;; You can also customize the options passed to the terminal.
+  ;; The default terminal is "gnome-terminal" with options "--".
+  (org-babel-tmux-terminal "terminator")
+  (org-babel-tmux-terminal-opts '("-T" "ob-tmux" "--new-tab" "-x"))
+  ;; Finally, if your tmux is not in your $PATH for whatever reason, you
+  ;; may set the path to the tmux binary as follows:
+  (org-babel-tmux-location "/usr/bin/tmux"))
+#+END_SRC
+
+* Incubating  
 ** Hydra
 
 #+BEGIN_SRC emacs-lisp :tangle yes
   (use-package hydra
     :ensure t)
 #+END_SRC
+
+#+RESULTS:
 
 #+BEGIN_SRC emacs-lisp :tangle yes
   (use-package pretty-hydra
@@ -583,6 +909,16 @@ From [[https://github.com/abo-abo/hydra/wiki/Switch-to-buffer][here]].
 
   (defvar my/last-buffers nil)
 
+  (defun vibu/shell-dir (buffer dir)
+    (let ((default-directory (or dir (pwd))))
+      (shell buffer))
+    )
+
+  (defun vibu/shell-tmp () 
+    (interactive
+     (vibu/shell-dir "*tmp-shell*" "/tmp")))
+  
+
   (defun my/switch-to-buffer (arg)
     (interactive "p")
     (switch-to-buffer
@@ -600,20 +936,54 @@ From [[https://github.com/abo-abo/hydra/wiki/Switch-to-buffer][here]].
                                                         (my/name-of-buffers 4)))
      "
   _o_ther buffers: %s(my/number-names my/last-buffers)
-
+  tmp _s_hell 
   "
      ("o" my/switch-to-buffer "this window")
      ("O" my/switch-to-buffer-other-window "other window")
+     ("s" vibu/shell-tmp)
      ("<escape>" nil)))
 #+END_SRC
 
 #+RESULTS:
 : my/switch-to-buffer/body
 
-
 *** Window hydra
 
 #+BEGIN_SRC emacs-lisp :tangle yes
+(require 'windmove)
+
+(defun hydra-move-splitter-left (arg)
+  "Move window splitter left."
+  (interactive "p")
+  (if (let ((windmove-wrap-around))
+        (windmove-find-other-window 'right))
+      (shrink-window-horizontally arg)
+    (enlarge-window-horizontally arg)))
+
+(defun hydra-move-splitter-right (arg)
+  "Move window splitter right."
+  (interactive "p")
+  (if (let ((windmove-wrap-around))
+        (windmove-find-other-window 'right))
+      (enlarge-window-horizontally arg)
+    (shrink-window-horizontally arg)))
+
+(defun hydra-move-splitter-up (arg)
+  "Move window splitter up."
+  (interactive "p")
+  (if (let ((windmove-wrap-around))
+        (windmove-find-other-window 'up))
+      (enlarge-window arg)
+    (shrink-window arg)))
+
+(defun hydra-move-splitter-down (arg)
+  "Move window splitter down."
+  (interactive "p")
+  (if (let ((windmove-wrap-around))
+        (windmove-find-other-window 'up))
+      (shrink-window arg)
+    (enlarge-window arg)))
+
  (defhydra hydra-window ()
    "
 Movement^^        ^Split^         ^Switch^		^Resize^
@@ -688,15 +1058,289 @@ _SPC_ cancel	_o_nly this   	_d_elete
     (:title "Org global" :hint none)
     ("Capture"
      (("c" org-capture "Capture")
-      ("g" org-capture-goto-last-stored "Goto Last"))
-     ))
+      ("g" org-capture-goto-last-stored "Goto Last"))     
+     "Roam"
+     (("f" org-roam-find-file "Find")
+      ("i" org-roam-insert "Insert")
+      ("r" org-roam "Roam")
+      )
+     "Journal"
+     (("n" org-journal-new-entry "New")
+      ("t" org-journal-open-current-journal-file "Today"))
+     "Timing"
+     (("C" org-clock-in "Clock in")
+      ("o" org-clock-out "Clock out")
+      ("s" org-pomodoro "Start pomodoro"))
+     )
+    )
 
   (define-key global-map (kbd "<f12>") 'org-global/body)
 #+END_SRC
 
-Lsp mode:
+#+RESULTS:
+: org-global/body
+
+*** My hydra
+
+#+BEGIN_SRC emacs-lisp :tangle yes
+  (defhydra k3d-hydra (:exit t :hint nil)
+    "
+  K3D^^
+  --------
+  _c_onfigure
+  _s_tart
+  _d_elete"
+    ("c" k3d/toggle-cluster-config)
+    ("s" k3d/start-cluster)
+    ("d" k3d/delete-cluster)
+    )
+#+END_SRC    
+
+#+RESULTS:
+: k3d-hydra/body
+
+#+BEGIN_SRC emacs-lisp :tangle yes
+  ()
+  
+  (defhydra vibu-global (:exit t :hint nil)
+    "
+  VPN^^              	^Hydras		Web^^^^^^	Misc
+  -------------------------------------------------------------
+  start _v_pn        	_s_mart\ Parens	_c_hrome	_m_ake frame
+  add _d_efault routes	_k_3d		_g_oogle	
+  add _r_oute         	_b_uffers 	b_r_owse 	
+"
+    ("v" (funcall (yankpad-map-simulate "v")))
+    ("d" (funcall (yankpad-map-simulate "d")))
+    ("r" (funcall (yankpad-map-simulate "r")))
+                               
+    ("s" hydra-smartparens/body)
+    ("k" k3d-hydra/body)
+    ("b" my/switch-to-buffer/body)
+
+    ("c" (start-process-shell-command "*chrome*" "*chrome*" "nohup google-chrome --remote-debugging-port=9222"))
+    ("g" google-this)
+    ("r" browse-url-at-point)
+
+    ("m" vibu/make-frame-other-monitor)
+    )
+     
+
+  (define-key global-map (kbd "<f9>") 'vibu-global/body)
+#+END_SRC
+
+#+RESULTS:
+: vibu-global/body
+
+*** Artist mode hydra
+
+#+BEGIN_SRC emacs-lisp :tangle yes
+  (use-package artist
+    :ensure t
+    :config
+    (defhydra hydra-artist (:exit t :hint nil)
+        "
+    Shapes^^		Operations^^
+    ----------------------------------------
+    _r_ectangle		_C_ut-rectangle
+    _p_oly-line		C_O_py-rectangle
+                          _P_aste"		
+    ("r" artist-select-op-rectangle)
+    ("p" artist-select-op-poly-line)
+    ("C" artist-select-op-cut-rectangle)
+    ("O" artist-select-op-copy-rectangle)
+    ("P" artist-select-op-paste)
+    )
+    (bind-key "C-c h" 'hydra-artist/body artist-mode-map)
+    )
+#+END_SRC
+
+#+RESULTS:
+: hydra-artist/body
+
+** Discovery
+*** Which key
+
+#+BEGIN_SRC emacs-lisp :tangle yes
+  (use-package which-key
+    :ensure t
+    :config
+    (which-key-mode))
+#+END_SRC
+
+#+RESULTS:
+: t
+
+** GPG
+
+GPG for keeping secrets.
+[[https://www.masteringemacs.org/article/keeping-secrets-in-emacs-gnupg-auth-sources][Guide]]
+
+*** External setup
+
+***** Generate a key
+
+#+begin_src bash
+  gpg --gen-key
+#+end_src
+
+#+RESULTS:
+
+*** Set up authsource files
+
+#+begin_src emacs-lisp :tangle yes
+(setq auth-sources
+ '((:source "~/.emacs.d/secrets/.authinfo.gpg")))
+#+end_src
+
+#+RESULTS:
+| :source | ~/.emacs.d/secrets/.authinfo.gpg |
+
+** Org jira
+
+I load org jira from a checked out git but if not available should load from package manager.
+
+#+begin_src emacs-lisp :tangle yes
+  (use-package org-jira
+    :ensure t
+    :custom
+    (add-to-list 'org-agenda-files org-jira-working-dir)
+    (jiralib-url "https://jira.axway.com/")
+    (org-jira-custom-jqls
+     '((:jql "project = APIGOV AND resolution = Unresolved AND reporter in (currentUser()) order by created DESC" :limit 100 :filename "opened-by-me"))))
+#+end_src
+
+*** Custom functions to create Axway tickets
+
+#+BEGIN_SRC emacs-lisp :tangle yes
+  (defun vibu/org-jira-subtree-as-jira ()
+    (let ((org-export-show-temporary-export-buffer nil))    
+      (ox-jira-export-as-jira nil t nil t))
+    (save-excursion
+      (set-buffer "*Org JIRA Export*")
+      (buffer-string)))
+  
+  (defun vibu/org-jira-get-subheading-as-jira (pom prefix)
+    (org-with-point-at pom
+      (if (org-goto-first-child)
+          (let ((found (string-prefix-p prefix (org-entry-get (point) "ITEM"))))
+               (while (and
+                       (not found)
+                       (org-goto-sibling))
+                 (setq found (string-prefix-p prefix (org-entry-get (point) "ITEM"))))
+               (when found
+                    (vibu/org-jira-subtree-as-jira))
+               )
+        )
+      )
+    )
+
+  (defun vibu/org-to-apigov (pom)
+    `((fields
+       (issuetype (name . ,(org-entry-get pom "issuetype")))
+       (project (key . ,(org-entry-get pom "project")))
+       (components ((name . ,(org-entry-get pom "components"))))
+       (customfield_12332 (value . ,(org-entry-get pom "team")))
+       (customfield_12431 (value . ,(org-entry-get pom "documentation")))
+       (fixVersions ((name . ,(org-entry-get pom "fixVersions"))))
+       (reporter (name . ,(org-entry-get pom "reporter")))
+       (summary . ,(org-entry-get pom "ITEM"))
+       (customfield_11731 . ,(org-entry-get pom "epic"))
+       (customfield_10330 . ,(let ((points (org-entry-get pom "points")))
+                                   (and points (string-to-number (org-entry-get pom "points")))))
+       (description . ,(vibu/org-jira-get-subheading-as-jira pom "description:"))
+       (customfield_13730 . ,(vibu/org-jira-get-subheading-as-jira pom "acceptance:"))
+       ))
+    )
+
+  (defun vibu/org-find-up-tree (predicate)
+    (save-excursion
+      (while (and (not (funcall predicate)) (> (funcall outline-level) 1))
+        (org-up-heading-safe)
+        )
+      
+      (and (funcall predicate) (point))
+      )
+    )
+
+  (defun vibu/org-jira-apigov-create-or-update ()
+    (interactive)
+    (let ((pom (vibu/org-find-up-tree (lambda () (org-entry-get (point) "issuetype")))))
+      (and pom
+           (let ((id (org-entry-get pom "ID")))
+             (if id
+                 (jiralib-update-issue id (cdr (car (vibu/org-to-apigov pom))))
+               (let ((response (jiralib-call "createIssue" nil (vibu/org-to-apigov pom))))
+                 (org-entry-put pom "ID" (cdr (assoc 'key response)))
+                 )
+               )
+             )
+           )
+      )
+    )
+#+END_SRC
+
+
+#+RESULTS:
+: vibu/org-jira-apigov-create-or-update
+
+** Forge
+
+Forge integrates magit with gitlab and github.
+
+#+begin_src emacs-lisp :tangle yes
+    (use-package forge
+      :ensure t
+      :config
+      (setq forge-alist (cons '("git.ecd.axway.int" "git.ecd.axway.int/api/v4" "git.ecd.axway.int" forge-gitlab-repository) forge-alist)))
+#+end_src
+
+#+RESULTS:
+: t
+
+*** Git secret
+
+** Language server for java
+:PROPERTIES:
+:header-args: :tangle yes
+:END:
+
+*** Placeholder
+#+BEGIN_SRC emacs-lisp :tangle yes
+  (print "Nothing")
+#+END_SRC
+
+#+RESULTS:
+: Nothing
+
+*** Client install
+
+**** treemacs
 
 #+BEGIN_SRC emacs-lisp
+  (use-package treemacs
+    :ensure t)
+#+END_SRC
+
+#+RESULTS:
+
+**** lsp-mode
+
+ #+BEGIN_SRC emacs-lisp
+   (use-package lsp-mode
+     :ensure t
+     :demand t
+     :init (setq lsp-inhibit-message nil ; you may set this to t to hide messages from message area
+		 lsp-eldoc-render-all nil
+	         lsp-prefer-flymake nil
+		 lsp-highlight-symbol-at-point nil)
+     :config (add-hook `javascript-mode-hook (lambda () (lsp))))
+ #+END_SRC
+
+ #+RESULTS:
+ : t
+
+#+BEGIN_SRC emacs-lisp :tangle yes
 (defhydra hydra-lsp (:exit t :hint nil)
   "
  Buffer^^               Server^^                   Symbol
@@ -724,120 +1368,22 @@ Lsp mode:
   (define-key global-map (kbd "<f11>") 'hydra-lsp/body)
 #+END_SRC
 
-*** Artist mode hydra
+#+RESULTS:
+: hydra-lsp/body
 
 #+BEGIN_SRC emacs-lisp :tangle yes
-  (defhydra hydra-artist (:exit t :hint nil)
-    "
-  Shapes^^		Operations^^
-  ----------------------------------------
-  _r_ectangle		_C_ut-rectangle
-  _p_oly-line		C_O_py-rectangle
-  			_P_aste"		
-  ("r" artist-select-op-rectangle)
-  ("p" artist-select-op-poly-line)
-  ("C" artist-select-op-cut-rectangle)
-  ("O" artist-select-op-copy-rectangle)
-  ("P" artist-select-op-paste)
-  )
-  ;; (bind-key "C-c h" 'hydra-artist/body artist-mode-map)
+(push "[/\\\\]vendor" lsp-file-watch-ignored)
 #+END_SRC
 
 #+RESULTS:
-: hydra-artist/body
-
-** Discovery
-*** Which key
-
-#+BEGIN_SRC emacs-lisp :tangle yes
-  (use-package which-key
-    :ensure t
-    :config
-    (which-key-mode))
-#+END_SRC
-** GPG
-
-GPG for keeping secrets.
-[[https://www.masteringemacs.org/article/keeping-secrets-in-emacs-gnupg-auth-sources][Guide]]
-
-*** External setup
-
-***** Generate a key
-
-#+begin_src bash
-  gpg --gen-key
-#+end_src
-
-*** Set up authsource files
-
-#+begin_src emacs-lisp :tangle yes
-(setq auth-sources
- '((:source "~/.emacs.d/secrets/.authinfo.gpg")))
-#+end_src
-
-** Org jira
-
-I load org jira from a checked out git but if not available should load from package manager.
-
-#+begin_src emacs-lisp :tangle yes
-  (use-package org-jira
-    :ensure t
-    :custom
-    (add-to-list 'org-agenda-files org-jira-working-dir)
-    (jiralib-url "https://techweb.axway.com/jira")
-    (org-jira-custom-jqls
-     '((:jql "project = APIGOV AND resolution = Unresolved AND reporter in (currentUser()) order by created DESC" :limit 100 :filename "opened-by-me"))))
-#+end_src
-
-** Forge
-
-Forge integrates magit with gitlab and github.
-
-#+begin_src emacs-lisp :tangle yes
-    (use-package forge
-      :ensure t
-      :config
-      (setq forge-alist (cons '("git.ecd.axway.int" "git.ecd.axway.int/api/v4" "git.ecd.axway.int" forge-gitlab-repository) forge-alist)))
-#+end_src
-
-*** Git secret
-
-** Language server for java
-:PROPERTIES:
-:header-args: :tangle yes
-:END:
-
-*** Placeholder
-#+BEGIN_SRC emacs-lisp :tangle yes
-  (print "Nothing")
-#+END_SRC
-
-*** Client install
-
-**** treemacs
-
-#+BEGIN_SRC emacs-lisp
-  (use-package treemacs
-    :ensure t)
-#+END_SRC
-
-**** lsp-mode
-
- #+BEGIN_SRC emacs-lisp
-   (use-package lsp-mode
-     :ensure t
-     :demand t
-     :init (setq lsp-inhibit-message nil ; you may set this to t to hide messages from message area
-		 lsp-eldoc-render-all nil
-	         lsp-prefer-flymake nil
-		 lsp-highlight-symbol-at-point nil)
-     :config (add-hook `javascript-mode-hook (lambda () (lsp))))
- #+END_SRC
+| [/\\]vendor | [/\\]\.git$ | [/\\]\.hg$ | [/\\]\.bzr$ | [/\\]_darcs$ | [/\\]\.svn$ | [/\\]_FOSSIL_$ | [/\\]\.idea$ | [/\\]\.ensime_cache$ | [/\\]\.eunit$ | [/\\]node_modules$ | [/\\]\.fslckout$ | [/\\]\.tox$ | [/\\]\.stack-work$ | [/\\]\.bloop$ | [/\\]\.metals$ | [/\\]target$ | [/\\]\.ccls-cache$ | [/\\]\.deps$ | [/\\]build-aux$ | [/\\]autom4te.cache$ | [/\\]\.reference$ |
 
 #+begin_src emacs-lisp :tangle yes
 (use-package lsp-treemacs
  :ensure t)
 #+end_src
+
+#+RESULTS:
 
 **** company-lsp
 
@@ -850,6 +1396,9 @@ Forge integrates magit with gitlab and github.
    (setq company-lsp-enable-snippet t
          company-lsp-cache-candidates t))
  #+END_SRC
+
+ #+RESULTS:
+ : t
 
 **** lsp-ui
  #+BEGIN_SRC emacs-lisp
@@ -864,6 +1413,9 @@ Forge integrates magit with gitlab and github.
          lsp-ui-sideline-update-mode 'point))
  #+END_SRC
 
+ #+RESULTS:
+ : t
+
 **** Lsp java
 
  #+BEGIN_SRC emacs-lisp
@@ -877,6 +1429,9 @@ Forge integrates magit with gitlab and github.
       (add-hook 'java-mode-hook #'lsp))
  #+END_SRC
 
+ #+RESULTS:
+ : t
+
 **** Dap mode
 
 #+BEGIN_SRC emacs-lisp
@@ -886,11 +1441,13 @@ Forge integrates magit with gitlab and github.
     :config
     (dap-mode t)
     (dap-ui-mode t)
-    ; don't start lsp in polymode
+    (require 'dap-go)
     )
   (use-package dap-java
     :after (lsp-java))
 #+END_SRC
+
+#+RESULTS:
 
 ** Golang
 
@@ -901,27 +1458,39 @@ Autocompletion
   :ensure t)
 #+END_SRC
 
+#+RESULTS:
+
 #+BEGIN_SRC emacs-lisp :tangle yes
   (use-package go-mode
     :ensure t
+    :bind (:map go-mode-map
+                ("C-c d" . 'dap-hydra))
     :config
-
+    (setq lsp-gopls-hover-kind "FullDocumentation")
+    (lsp-register-custom-settings
+     '(("gopls.completeUnimported" t t)
+       ("gopls.staticcheck" t t)))
     (add-hook `go-mode-hook (lambda ()
 			      (push "/home/vibu/work/go/bin" exec-path) ;; make sure this is in path
 			      ;; (setq-local company-backends (list (list 'company-go 'company-yasnippet)))
-			      (add-hook `before-save-hook `gofmt-before-save) ;;; gofmt before save
+
 			      ;; (flycheck-mode)
 			      ;; (local-set-key (kbd "M-.") 'godef-jump)
 			      ;; (local-set-key (kbd "M-*") 'pop-tag-mark)
 			      (local-set-key (kbd "M-p") 'compile)            ; Invoke compiler
 			      (local-set-key (kbd "M-P") 'recompile)          ; Redo most recent compile cmd
+                              ;; (setq-local lsp-gopls-codelens nil)
 			      (lsp)
-			      ;;(go-guru-hl-identifier-mode)
+                              (add-hook 'before-save-hook #'lsp-format-buffer t t)
+                              (add-hook 'before-save-hook #'lsp-organize-imports t t)			      ;;(go-guru-hl-identifier-mode)
                               (setq-local company-backends (list (list 'company-yankpad 'company-lsp)))
 			      )
 	      )
     )
 #+END_SRC
+
+#+RESULTS:
+: dap-hydra
 
 *** golangci-lint
 
@@ -931,22 +1500,50 @@ Autocompletion
   :hook (go-mode . flycheck-golangci-lint-setup))
 #+END_SRC
 
+#+RESULTS:
+
+
 *** Go mode hydra
 
 #+BEGIN_SRC emacs-lisp :tangle yes
+  (defun vibu/go-test-toggle-arg (arg)
+    (interactive "sArgument: ")
+    (let* ((current-args
+            (or (split-string (or go-test-args " ") " " t) (list)))
+           (is-set (-contains? current-args arg)))
+      (if is-set
+          (set 'current-args (-remove-item arg current-args))
+        (add-to-list 'current-args arg))
+      (setq-local go-test-args
+                  (or (and current-args (--reduce-r (format "%s %s" acc it) current-args))
+                      nil))
+      (not is-set))
+    )
+
   (defun go-test-verbose ()
     (interactive)
-    (setq-local go-test-verbose (not go-test-verbose)))
+    (setq-local go-test-verbose (not (or go-test-verbose nil))))
 
+  (defun go-test-update ()
+    (interactive)
+    (setq-local go-test-update (vibu/go-test-toggle-arg "-update")))
+
+  (defun go-test-no-cache ()
+    (interactive)
+    (setq-local go-test-no-cache (vibu/go-test-toggle-arg "-count=1")))
+  
   (pretty-hydra-define hydra-go
     (:title "Go Mode")
     ("Test"
      (
+      ("n" go-test-no-cache "no cache" :toggle t)
+      ("u" go-test-update "update" :toggle t)
       ("v" go-test-verbose "verbose" :toggle t)
       ("l" go-test-current-test-cache "last")
       ("c" go-test-current-test "current")
       ("f"  go-test-current-file "file"))
-     ))
+     )
+    )
 
   (bind-key "C-c h" 'hydra-go/body go-mode-map)
 #+END_SRC
@@ -959,15 +1556,21 @@ Autocompletion
     :ensure t)
 #+END_SRC
 
+#+RESULTS:
+
 #+BEGIN_SRC emacs-lisp
 (use-package go-rename
   :ensure t)
 #+END_SRC
 
+#+RESULTS:
+
 #+BEGIN_SRC emacs-lisp
 (use-package go-guru
   :ensure t)
 #+END_SRC
+
+#+RESULTS:
 
 Gotest
 
@@ -975,6 +1578,8 @@ Gotest
   (use-package gotest
     :ensure t)
 #+END_SRC
+
+#+RESULTS:
 
 Gometalinter
 
@@ -987,12 +1592,17 @@ Gometalinter
     (flycheck-gometalinter-setup))
 #+END_SRC
 
+#+RESULTS:
+: t
+
 Go snippets
 
 #+BEGIN_SRC emacs-lisp
   (use-package go-snippets
     :ensure t)
 #+END_SRC
+
+#+RESULTS:
 
 ** Flycheck pos tip
 
@@ -1009,6 +1619,10 @@ Go snippets
 				  ))
   )
 #+END_SRC
+
+#+RESULTS:
+: t
+
 ** Protobufs
 
 #+BEGIN_SRC emacs-lisp
@@ -1016,6 +1630,9 @@ Go snippets
     :ensure t
     )
 #+END_SRC
+
+#+RESULTS:
+
 ** Ejira
 
 #+begin_src emacs-lisp :tangle yes
@@ -1023,16 +1640,20 @@ Go snippets
     :ensure t)
 #+end_src
 
+#+RESULTS:
+
 #+BEGIN_SRC emacs-lisp :tangle yes
 (use-package ox-jira
   :ensure t)
 #+END_SRC
 
+#+RESULTS:
+
 #+begin_src emacs-lisp :tangle no
 (use-package ejira
   :load-path "~/emacs_git/ejira"
   :init
-  (setq jiralib2-url             "https://techweb.axway.com/jira"
+  (setq jiralib2-url             "https://jira.axway.com/secure"
         jiralib2-user-login-name "vbuciuc"
         ejira-projects           '("APIGOV")
         ejira-main-project       "APIGOV"
@@ -1054,12 +1675,18 @@ Go snippets
                  ((org-agenda-overriding-header "Assigned to me")))))))
 #+end_src
 
+#+RESULTS:
+: t
+
 ** Jsonnet
 
 #+BEGIN_SRC emacs-lisp :tangle yes
    (use-package jsonnet-mode
     :ensure t)
 #+END_SRC
+
+#+RESULTS:
+
 ** Org agenda
 
 #+BEGIN_SRC emacs-lisp :tangle yes
@@ -1070,6 +1697,22 @@ Go snippets
     ("C-c C-a" . 'org-agenda))
 #+END_SRC
 
+#+RESULTS:
+: org-agenda
+
+*** Quick search through knowledge files
+
+#+BEGIN_SRC emacs-lisp
+  (add-to-list 'org-agenda-custom-commands
+               '("ks" "Knowledge search" search ""
+                 ((org-agenda-files (append `("~/.org/knowledge.org") (directory-files-recursively "~/.org/knowledge/" ".*\\.org"))))))
+#+END_SRC
+
+#+RESULTS:
+| ks | Knowledge search     | search                                                                                                             |   | ((org-agenda-files (append (` (~/.org/knowledge.org)) (directory-files-recursively ~/.org/knowledge/ .*\.org)))) |
+| j  | My JIRA issues       | ((ejira-jql resolution = unresolved and assignee = currentUser() ((org-agenda-overriding-header Assigned to me)))) |   |                                                                                                                  |
+| n  | Agenda and all TODOs | ((agenda ) (alltodo ))                                                                                             |   |                                                                                                                  |
+
 ** Org refile
 
 #+BEGIN_SRC emacs-lisp :tangle yes
@@ -1078,69 +1721,17 @@ Go snippets
   (setq org-refile-allow-creating-parent-nodes 'confirm)
 #+END_SRC
 
-** Org protocol
-
-*** Only once
-
-Create the following file:
-
-#+BEGIN_SRC text :file ~/.local/share/applications/org-protocol-handler.desktop
-[Desktop Entry]
-  Version=1.0
-  Type=Application
-  Exec=/usr/bin/emacsclient %u
-  Icon=/usr/share/icons/hicolor/scalable/apps/emacs.svg
-  StartupNotify=true
-  Terminal=false
-  Categories=Utility;X-XFCE;X-Xfce-Toplevel;
-  MimeType=x-scheme-handler/org-protocol
-  Name=Org Protocol Handler
-  Comment=Invoke emacsclient with org-protocol
-#+END_SRC
-
-Then add the following line to *~/.local/share/applications/mimeapps.list*:
-: x-scheme-handler/org-protocol=exo-org-protocol-handler.desktop
-
-Update the desktop database with this command
-
-#+BEGIN_SRC bash
-  update-desktop-database  ~/.local/share/applications/
-#+END_SRC
-
-*** Setup chrome
-
-Use: [[https://github.com/mikecrittenden/shortkeys/][mikecrittenden/shortkeys]]
-
-Setup a shortcut for ctrl+alt+c.
-
-In the capture template body can be referred as %i and url+title as %a.
-
-#+BEGIN_SRC js
-  var captureLink =function(){
-      var uri = 'org-protocol://capture?' +
-          'template=n' +
-          '&url=' + encodeURIComponent(window.location.href) +
-          '&title=' + encodeURIComponent(document.title) +
-          '&body=' + encodeURIComponent(window.getSelection().toString());
-      window.location = uri
-      return uri;
-  };
-  captureLink()
-#+END_SRC
-
-*** Start org protocol
-
-#+BEGIN_SRC emacs-lisp :tangle yes
-  (require 'org-protocol)
-#+END_SRC
-
 #+RESULTS:
-: org-protocol
+: confirm
 
 ** Org pomodoro
 
 #+BEGIN_SRC emacs-lisp :tangle yes
   (use-package org-pomodoro
+    :config
+    ; configure alert.el to send pomodoro notifications on dbus notifications
+    (setq alert-user-configuration
+          (cons '(((:category . "org-pomodoro")) notifications nil) alert-user-configuration))    
     :ensure t)
 #+END_SRC
 
@@ -1159,27 +1750,116 @@ In the capture template body can be referred as %i and url+title as %a.
       (load-file "~/.emacs.d/secrets/secrets.el.gpg"))
 #+END_SRC
 
+#+RESULTS:
+: t
+
 ** Eval in repl
 
 #+BEGIN_SRC emacs-lisp :tangle yes
-   (use-package eval-in-repl
-     :ensure t
-     :config
-     (defun eir-eval-in-shell2 ()
-       "eval-in-repl for shell script (opposite behavior)
+  (use-package eval-in-repl
+    :ensure t
+    :config
+    (defun vibu/eir-shell-buffer-name ()
+      (let ((org-src-info (org-babel-get-src-block-info)))
+        (format "*eir-%s*"
+                (or (and org-src-info
+                         (alist-get :session (-third-item org-src-info)))
+                    "default"))
+        ))
+    (defun vibu/eir-shell-dir ()
+      (let ((org-src-info (org-babel-get-src-block-info)))
+        (or (and org-src-info
+                 (alist-get :dir (-third-item org-src-info)))
+            nil)
+        ))
+    (defalias 'eir-send-to-shell
+      (apply-partially 'eir-send-to-repl
+                       ;; fun-change-to-repl
+                       #'(lambda () (switch-to-buffer-other-window (vibu/eir-shell-buffer-name)))
+                       ;; fun-execute
+                       #'comint-send-input))
+    (defun vibu/org-babel-expand-noweb-region (start end)
+      (if (org-babel-get-src-block-info)
+          (save-excursion
+            (let* ((srcstart (progn
+                               (org-backward-element)
+                               (point)))
+                   (srcend (progn
+                             (org-end-of-line)
+                             (point))))
+              
+              (polymode-with-current-base-buffer
+               (lambda (buffer)
+                 (let ((old-buf buffer))
+                   (with-temp-buffer           
+                     (erase-buffer)
+                     (insert-buffer-substring old-buf srcstart srcend)
+                     (insert "\n")
+                     (insert-buffer-substring old-buf start end)
+                     (insert "\n#+END_SRC")
+                     (org-babel-expand-noweb-references nil old-buf)
+                     )
+                   )
+                 )
+               (current-buffer))
+              )
+            )
+        (buffer-substring-no-properties start end)
+        )  
+      )
+    (defun eir-eval-in-shell ()
+      "eval-in-repl for shell."
+      (interactive)
+      ;; Define local variables
+      (let* (;; Save current point
+             (initial-point (point)))
+        (eir-repl-start (regexp-quote (vibu/eir-shell-buffer-name))
+                        (lambda () (interactive) (vibu/shell-dir (vibu/eir-shell-buffer-name) (vibu/eir-shell-dir)))
+                        t)
+
+        ;; Check if selection is present
+        (if (and transient-mark-mode mark-active)
+            ;; If selected, send region
+            (eir-send-to-shell (vibu/org-babel-expand-noweb-region (point) (mark)))
+
+          ;; If not selected, do all the following
+          ;; Move to the beginning of line
+          (beginning-of-line)
+          ;; Set mark at current position
+          (set-mark (point))
+          ;; Go to the end of line
+          (end-of-line)
+          ;; Send region if not empty
+          (if (not (equal (point) (mark)))
+              (eir-send-to-shell (vibu/org-babel-expand-noweb-region (point) (mark)))
+            ;; If empty, deselect region
+            (setq mark-active nil))
+
+          ;; Move to the next statement code if jumping
+          (if eir-jump-after-eval
+              (eir-next-code-line)
+            ;; Go back to the initial position otherwise
+            (goto-char initial-point)))))
+    
+    (defun eir-eval-in-shell2 ()
+      "eval-in-repl for shell script (opposite behavior)
 
    This version has the opposite behavior to the eir-jump-after-eval
    configuration when invoked to evaluate a line."
-       (interactive)
-       (let ((eir-jump-after-eval (not eir-jump-after-eval)))
-         (eir-eval-in-shell)))
-     (add-hook 'sh-mode-hook
-          '(lambda()
-             (local-set-key (kbd "C-<return>") 'eir-eval-in-shell)))
-     (add-hook 'sh-mode-hook
-               '(lambda()
-                  (local-set-key (kbd "C-M-<return>") 'eir-eval-in-shell2))))
+      (interactive)
+      (let ((eir-jump-after-eval (not eir-jump-after-eval)))
+        (eir-eval-in-shell)))
+    (add-hook 'sh-mode-hook
+              '(lambda()
+                 (local-set-key (kbd "C-<return>") 'eir-eval-in-shell)))
+    (add-hook 'sh-mode-hook
+              '(lambda()
+                 (local-set-key (kbd "C-M-<return>") 'eir-eval-in-shell2))))
 #+END_SRC
+
+#+RESULTS:
+: t
+
 ** Yankpad
 
 [[https://github.com/Kungsgeten/yankpad][Yankpad]] is a snippet management tool over org-mode.
@@ -1192,6 +1872,10 @@ In the capture template body can be referred as %i and url+title as %a.
   :config
   (setq yankpad-file "~/.org/yankpad.org"))
 #+END_SRC
+
+#+RESULTS:
+: t
+
 ** Elasticsearch
 #+BEGIN_SRC emacs-lisp
   (use-package es-mode
@@ -1203,10 +1887,18 @@ In the capture template body can be referred as %i and url+title as %a.
 
 #+BEGIN_SRC emacs-lisp
   (use-package js
+    :bind (:map js-mode-map
+                ("M-." . xref-find-definitions))
     :config
-    (add-hook `js-mode-hook (lambda () (lsp)))
+    (add-hook `js-mode-hook (lambda ()
+                              (lsp)
+                              )
+              )
     )
 #+END_SRC
+
+#+RESULTS:
+: t
 
 ** Typescript
 
@@ -1220,7 +1912,10 @@ In the capture template body can be referred as %i and url+title as %a.
 
 ** Lua
 
-#+BEGIN_SRC emacs-lisp :tangle yes
+Currently not loading lua mode since it has some compatibility issue with 27.0.91 that I have to look
+into.
+
+#+BEGIN_SRC emacs-lisp
   (use-package lua-mode
     :ensure t)
 #+END_SRC
@@ -1241,7 +1936,7 @@ In the capture template body can be referred as %i and url+title as %a.
 *** Install pass mode
 
 
-#+BEGIN_SRC emacs-lisp
+#+BEGIN_SRC emacs-lisp :tangle yes
   (use-package pass
     :ensure t
     :config
@@ -1257,7 +1952,7 @@ user: user@domain.com
 port: 993
 #+END_QUOTE
 
-** Smart Parens
+** Smart Parens 
 
 #+BEGIN_SRC emacs-lisp :tangle yes
 (use-package smartparens
@@ -1266,7 +1961,7 @@ port: 993
   ("C-'" . hydra-smartparens/body)
   :config
   (require 'smartparens-config)
-  (add-hook 'go-mode-hook #'smartparens-mode)
+  (smartparens-global-mode)
   )
 #+END_SRC
 
@@ -1326,3 +2021,70 @@ port: 993
 
 #+RESULTS:
 : hydra-smartparens/body
+** Google this
+
+#+BEGIN_SRC emacs-lisp :tangle yes
+  (use-package google-this
+    :ensure t
+    )
+#+END_SRC
+
+** babel eval in repl
+
+#+BEGIN_SRC emacs-lisp
+  (use-package org-babel-eval-in-repl
+    :ensure t
+    :config
+    (with-eval-after-load "ob"
+      (require 'org-babel-eval-in-repl)
+      (define-key org-mode-map (kbd "C-<return>") 'ober-eval-in-repl)
+      (define-key org-mode-map (kbd "M-<return>") 'ober-eval-block-in-repl)))
+#+END_SRC
+
+** elfeed
+
+#+BEGIN_SRC emacs-lisp :tangle yes
+  (use-package elfeed-org
+    :ensure t 
+    :config
+    (elfeed-org)
+    (setq rmh-elfeed-org-files (list "~/.org/elfeed.org")))
+#+END_SRC
+
+** rego mode
+
+#+BEGIN_SRC emacs-lisp :tangle yes
+(use-package rego-mode 
+  :ensure t
+  :custom
+  (rego-repl-executable "opa")
+  (rego-opa-command "opa"))
+#+END_SRC
+
+** chrome.el
+
+Navigate chrome tabs from emacs.
+
+#+BEGIN_SRC emacs-lisp :tangle yes
+(use-package chrome
+ :load-path "~/emacs_git/chrome.el/")
+#+END_SRC
+
+Chrome should be started in debug mode:
+
+#+BEGIN_SRC bash :async
+  google-chrome --remote-debugging-port=9222
+#+END_SRC
+
+** rg.el
+
+rg.el is an interface to ripgrep
+
+#+BEGIN_SRC emacs-lisp :tangle yes
+  (use-package rg
+    :ensure t
+    :config
+    (rg-enable-menu)
+)
+#+END_SRC
+
